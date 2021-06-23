@@ -31,3 +31,42 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    2021-06-23T16:40:15.930Z	INFO	controller-runtime.metrics	metrics server is starting to listen	{"addr": "127.0.0.1:8080"}
    2021-06-23T16:40:15.931Z	INFO	setup	starting manager v0.0.1
    ```
+
+## ContainerDiagnostic
+
+Describe the API resource:
+
+```
+$ kubectl explain ContainerDiagnostic     
+KIND:     ContainerDiagnostic
+VERSION:  diagnostic.ibm.com/v1
+
+DESCRIPTION:
+     ContainerDiagnostic is the Schema for the containerdiagnostics API
+
+FIELDS:
+[..]
+   spec	<Object>
+     ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
+
+   status	<map[string]>
+     ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
+```
+
+Describe the spec:
+
+```
+$ kubectl explain ContainerDiagnostic.spec       
+KIND:     ContainerDiagnostic
+VERSION:  diagnostic.ibm.com/v1
+
+RESOURCE: spec <Object>
+
+DESCRIPTION:
+     ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
+
+FIELDS:
+   foo	<string>
+     Foo is an example field of ContainerDiagnostic. Edit
+     containerdiagnostic_types.go to remove/update
+```
