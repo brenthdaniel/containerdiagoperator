@@ -96,7 +96,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager 20210623")
+	setupLog.Info("starting manager v0.0.3")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)

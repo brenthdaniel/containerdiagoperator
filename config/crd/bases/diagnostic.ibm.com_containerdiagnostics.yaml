@@ -37,9 +37,8 @@ spec:
           spec:
             description: ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
             properties:
-              foo:
-                description: Foo is an example field of ContainerDiagnostic. Edit
-                  containerdiagnostic_types.go to remove/update
+              command:
+                description: 'Command is one of: listjava'
                 type: string
             type: object
           status:

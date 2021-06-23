@@ -28,8 +28,8 @@ type ContainerDiagnosticSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of ContainerDiagnostic. Edit containerdiagnostic_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Command is one of: listjava
+	Command string `json:"command,omitempty"`
 }
 
 // ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic

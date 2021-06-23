@@ -32,7 +32,12 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    2021-06-23T16:40:15.931Z	INFO	setup	starting manager v0.0.1
    ```
 
-## ContainerDiagnostic
+### Update Spec
+
+1. [Update `*_types.go`](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#define-the-api)
+1. `make generate`
+
+### ContainerDiagnostic
 
 Describe the API resource:
 
