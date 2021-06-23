@@ -1,0 +1,7 @@
+apiVersion: diagnostic.ibm.com/v1
+kind: ContainerDiagnostic
+metadata:
+  name: containerdiagnostic-sample
+spec:
+  # Add fields here
+  foo: bar

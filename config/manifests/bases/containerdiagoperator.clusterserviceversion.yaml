@@ -1,0 +1,49 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: containerdiagoperator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: ContainerDiagnostic is the Schema for the containerdiagnostics
+        API
+      displayName: Container Diagnostic
+      kind: ContainerDiagnostic
+      name: containerdiagnostics.diagnostic.ibm.com
+      version: v1
+  description: Diagnostic utilities managed by an operator
+  displayName: ContainerDiagnosticOperator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - diagnostics
+  links:
+  - name: Containerdiagoperator
+    url: https://containerdiagoperator.domain
+  maintainers:
+  - email: kevin.grigorenko@us.ibm.com
+    name: Kevin Grigorenko
+  maturity: alpha
+  provider:
+    name: kevin.grigorenko@us.ibm.com
+    url: https://github.com/kgibm/containerdiagoperator
+  version: 0.0.0

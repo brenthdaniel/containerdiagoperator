@@ -1,0 +1,24 @@
+# permissions for end users to edit containerdiagnostics.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: containerdiagnostic-editor-role
+rules:
+- apiGroups:
+  - diagnostic.ibm.com
+  resources:
+  - containerdiagnostics
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - diagnostic.ibm.com
+  resources:
+  - containerdiagnostics/status
+  verbs:
+  - get

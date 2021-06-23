@@ -1,0 +1,20 @@
+# permissions for end users to view containerdiagnostics.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: containerdiagnostic-viewer-role
+rules:
+- apiGroups:
+  - diagnostic.ibm.com
+  resources:
+  - containerdiagnostics
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - diagnostic.ibm.com
+  resources:
+  - containerdiagnostics/status
+  verbs:
+  - get
