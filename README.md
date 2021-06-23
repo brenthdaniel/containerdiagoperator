@@ -27,7 +27,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
 1. Show operator logs:
    ```
-   % kubectl logs containerdiagoperator-controller-manager-5c65d5b66-zc4v4 --namespace=containerdiagoperator-system --container=manager
+   $ kubectl logs containerdiagoperator-controller-manager-5c65d5b66-zc4v4 --namespace=containerdiagoperator-system --container=manager
    2021-06-23T16:40:15.930Z	INFO	controller-runtime.metrics	metrics server is starting to listen	{"addr": "127.0.0.1:8080"}
    2021-06-23T16:40:15.931Z	INFO	setup	starting manager 20210623
    ```
