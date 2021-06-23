@@ -4,6 +4,8 @@ ContainerDiagnostic CRD and diagnostic controller
 
 ## Development
 
+Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/).
+
 1. Update date in `main.go`:
    ```
    setupLog.Info("starting manager 20210623")
