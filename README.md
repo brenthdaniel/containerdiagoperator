@@ -71,7 +71,6 @@ DESCRIPTION:
      ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
 
 FIELDS:
-   foo	<string>
-     Foo is an example field of ContainerDiagnostic. Edit
-     containerdiagnostic_types.go to remove/update
+   command	<string>
+     Command is one of: listjava
 ```
