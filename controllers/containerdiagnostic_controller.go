@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -49,9 +50,9 @@ type ContainerDiagnosticReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	log.Info("Reconciling ContainerDiagnostic")
+	logger.Info("Reconciling ContainerDiagnostic")
 
 	containerDiagnostic := &diagnosticv1.ContainerDiagnostic{}
 	err := r.Get(ctx, req.NamespacedName, containerDiagnostic)
@@ -60,16 +61,26 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
-			log.Info("ContainerDiagnostic resource not found. Ignoring since object must be deleted")
+			logger.Info("ContainerDiagnostic resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		log.Error(err, "Failed to get ContainerDiagnostic")
+		logger.Error(err, "Failed to get ContainerDiagnostic")
 		return ctrl.Result{}, err
 	}
 
-	log.Info(fmt.Sprintf("ContainerDiagnostic command: %s", containerDiagnostic.Spec.Command))
+	logger.Info(fmt.Sprintf("ContainerDiagnostic command: %s", containerDiagnostic.Spec.Command))
 
+	switch containerDiagnostic.Spec.Command {
+	case "version":
+		return r.CommandVersion(ctx, req, containerDiagnostic, logger)
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *ContainerDiagnosticReconciler) CommandVersion(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
+	logger.Info("Processing command: version")
 	return ctrl.Result{}, nil
 }
 

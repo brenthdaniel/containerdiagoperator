@@ -67,6 +67,12 @@ Get:
 kubectl get ContainerDiagnostic diag1 --namespace=testns1
 ```
 
+Delete:
+
+```
+kubectl delete ContainerDiagnostic diag1 --namespace=testns1
+```
+
 ### ContainerDiagnostic
 
 Describe the API resource:
