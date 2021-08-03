@@ -61,19 +61,30 @@ make undeploy
 Create:
 
 ```
-printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s"}}' diag1 testns1 version | kubectl create -f -
+printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s}}' diag1 testns1 version '[]' | kubectl create -f -
 ```
 
 Describe:
 
 ```
-kubectl describe ContainerDiagnostic diag1 --namespace=testns1
+$ kubectl describe ContainerDiagnostic diag1 --namespace=testns1
+[...]
+Spec:
+  Command:  version
+Status:
+  Log:             
+  Result:          Version 0.12.20210803
+  Status Code:     0
+  Status Message:  success
+Events:            <none>
 ```
 
 Get:
 
 ```
-kubectl get ContainerDiagnostic diag1 --namespace=testns1
+$ kubectl get ContainerDiagnostic diag1 --namespace=testns1
+NAME    STARTED   COMMAND   ARGUMENTS   RESULT                  STATUSCODE   STATUSMESSAGE
+diag1   7m24s     version   ["a","b"]   Version 0.12.20210803   0            success
 ```
 
 Delete:
