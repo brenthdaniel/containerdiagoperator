@@ -42,8 +42,6 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-const OPERATOR_VERSION = "0.8.20210803"
-
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
@@ -99,7 +97,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info(fmt.Sprintf("starting manager %s", OPERATOR_VERSION))
+	setupLog.Info(fmt.Sprintf("starting manager %s", controllers.OperatorVersion))
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)

@@ -30,6 +30,24 @@ import (
 	diagnosticv1 "github.com/kgibm/containerdiagoperator/api/v1"
 )
 
+const OperatorVersion = "0.11.20210803"
+
+type StatusEnum int
+
+const (
+	Success StatusEnum = iota
+	Error
+)
+
+var StatusEnumNames = []string{
+	"success",
+	"error",
+}
+
+func (se StatusEnum) ToString() string {
+	return StatusEnumNames[se]
+}
+
 // ContainerDiagnosticReconciler reconciles a ContainerDiagnostic object
 type ContainerDiagnosticReconciler struct {
 	client.Client
@@ -81,6 +99,16 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 
 func (r *ContainerDiagnosticReconciler) CommandVersion(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
 	logger.Info("Processing command: version")
+
+	containerDiagnostic.Status.StatusCode = int(Success)
+	containerDiagnostic.Status.StatusMessage = Success.ToString()
+	containerDiagnostic.Status.Result = fmt.Sprintf("Version %s", OperatorVersion)
+	err := r.Status().Update(ctx, containerDiagnostic)
+	if err != nil {
+		logger.Error(err, "Failed to update ContainerDiagnostic status")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 

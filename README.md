@@ -15,7 +15,7 @@ ContainerDiagnostic CRD and diagnostic controller
 
 Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/).
 
-1. Increment version in `main.go`:
+1. Increment version in `controllers/containerdiagnostic_controller.go`:
    ```
    const OPERATOR_VERSION = "0.4.20210803"
    ```
@@ -23,7 +23,10 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
    make generate
    ```
-1. `docker login`
+1. If needed, log into DockerHub:
+   ```
+   docker login
+   ```
 1. Build and push to [DockerHub](https://hub.docker.com/r/kgibm/containerdiagoperator) (increment version):
    ```
    make docker-build docker-push IMG="kgibm/containerdiagoperator:0.4.20210803"

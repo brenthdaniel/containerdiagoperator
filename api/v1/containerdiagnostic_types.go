@@ -35,9 +35,11 @@ type ContainerDiagnosticSpec struct {
 // ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
 type ContainerDiagnosticStatus struct {
 
-	// +kubebuilder:default=init
-	// +kubebuilder:validation:Enum=init;error;finished
-	State string `json:"state"`
+	// +kubebuilder:validation:Optional
+	StatusCode int `json:"statusCode"`
+
+	// +kubebuilder:validation:Optional
+	StatusMessage string `json:"statusMessage"`
 
 	// +kubebuilder:validation:Optional
 	Result string `json:"result"`
