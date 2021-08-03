@@ -20,28 +20,28 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
 type ContainerDiagnosticSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 
-	// Command is one of: listjava
+	// Command is one of: version, listjava
+	// +kubebuilder:validation:Enum=version;listjava
 	Command string `json:"command,omitempty"`
+
+	Arguments []string `json:"arguments"`
 }
 
 // ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
 type ContainerDiagnosticStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	State int `json:"state"`
+
+	Result string `json:"result"`
+
+	Log string `json:"log"`
 }
 
+// ContainerDiagnostic is the Schema for the containerdiagnostics API
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-
-// ContainerDiagnostic is the Schema for the containerdiagnostics API
 type ContainerDiagnostic struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -50,9 +50,8 @@ type ContainerDiagnostic struct {
 	Status ContainerDiagnosticStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
 // ContainerDiagnosticList contains a list of ContainerDiagnostic
+//+kubebuilder:object:root=true
 type ContainerDiagnosticList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

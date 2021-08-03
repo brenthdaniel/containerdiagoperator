@@ -37,12 +37,32 @@ spec:
           spec:
             description: ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
             properties:
+              arguments:
+                items:
+                  type: string
+                type: array
               command:
-                description: 'Command is one of: listjava'
+                description: 'Command is one of: version, listjava'
+                enum:
+                - version
+                - listjava
                 type: string
+            required:
+            - arguments
             type: object
           status:
             description: ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
+            properties:
+              log:
+                type: string
+              result:
+                type: string
+              state:
+                type: integer
+            required:
+            - log
+            - result
+            - state
             type: object
         type: object
     served: true

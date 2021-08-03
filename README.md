@@ -4,20 +4,27 @@ ContainerDiagnostic CRD and diagnostic controller
 
 ## Development
 
+### Update Spec
+
+1. [Update `api/v1/*_types.go`](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#define-the-api)
+1. `make generate`
+
+### Build and Deploy
+
 Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/).
 
 1. Increment version in `main.go`:
    ```
-   setupLog.Info("starting manager v0.0.1")
+   const OPERATOR_VERSION = "0.4.20210803"
    ```
 1. `docker login`
 1. Build and push to [DockerHub](https://hub.docker.com/r/kgibm/containerdiagoperator) (increment version):
    ```
-   make docker-build docker-push IMG="kgibm/containerdiagoperator:v0.0.1"
+   make docker-build docker-push IMG="kgibm/containerdiagoperator:0.4.20210803"
    ```
-1. Deploy to target cluster:
+1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context):
    ```
-   make deploy IMG="kgibm/containerdiagoperator:v0.0.1"
+   make deploy IMG="kgibm/containerdiagoperator:0.4.20210803"
    ```
 1. List operator pods:
    ```
@@ -29,13 +36,8 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
    $ kubectl logs containerdiagoperator-controller-manager-5c65d5b66-zc4v4 --namespace=containerdiagoperator-system --container=manager
    2021-06-23T16:40:15.930Z	INFO	controller-runtime.metrics	metrics server is starting to listen	{"addr": "127.0.0.1:8080"}
-   2021-06-23T16:40:15.931Z	INFO	setup	starting manager v0.0.1
+   2021-06-23T16:40:15.931Z	INFO	setup	starting manager 0.4.20210803
    ```
-
-### Update Spec
-
-1. [Update `*_types.go`](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#define-the-api)
-1. `make generate`
 
 ### ContainerDiagnostic
 

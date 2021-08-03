@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -40,6 +41,8 @@ var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
+
+const OPERATOR_VERSION = "0.4.20210803"
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -96,7 +99,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager v0.0.3")
+	setupLog.Info(fmt.Sprintf("starting manager %s", OPERATOR_VERSION))
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
