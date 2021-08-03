@@ -48,6 +48,12 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    2021-06-23T16:40:15.931Z	INFO	setup	starting manager 0.4.20210803
    ```
 
+To destroy the CRD and all CRs:
+
+```
+make undeploy
+```
+
 ### Create ContainerDiagnostic
 
 #### Test using version command

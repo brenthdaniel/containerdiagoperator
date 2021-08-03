@@ -49,8 +49,13 @@ type ContainerDiagnosticStatus struct {
 }
 
 // ContainerDiagnostic is the Schema for the containerdiagnostics API
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Command",type=string,JSONPath=`.spec.command`
+// +kubebuilder:printcolumn:name="Arguments",type=string,JSONPath=`.spec.arguments`
+// +kubebuilder:printcolumn:name="Result",type=string,JSONPath=`.status.result`
+// +kubebuilder:printcolumn:name="StatusCode",type=integer,JSONPath=`.status.statusCode`
+// +kubebuilder:printcolumn:name="StatusMessage",type=string,JSONPath=`.status.statusMessage`
 type ContainerDiagnostic struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
