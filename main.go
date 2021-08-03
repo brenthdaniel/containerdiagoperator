@@ -42,7 +42,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-const OPERATOR_VERSION = "0.6.20210803"
+const OPERATOR_VERSION = "0.7.20210803"
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))

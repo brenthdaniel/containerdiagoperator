@@ -40,10 +40,32 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
 1. Show operator logs:
    ```
-   $ kubectl logs containerdiagoperator-controller-manager-5c65d5b66-zc4v4 --namespace=containerdiagoperator-system --container=manager
+   $ kubectl logs --container=manager --namespace=containerdiagoperator-system containerdiagoperator-controller-manager-5c65d5b66-zc4v4
    2021-06-23T16:40:15.930Z	INFO	controller-runtime.metrics	metrics server is starting to listen	{"addr": "127.0.0.1:8080"}
    2021-06-23T16:40:15.931Z	INFO	setup	starting manager 0.4.20210803
    ```
+
+### Create ContainerDiagnostic
+
+#### Test using version command
+
+Create:
+
+```
+printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s"}}' diag1 testns1 version | kubectl create -f -
+```
+
+Describe:
+
+```
+kubectl describe ContainerDiagnostic diag1 --namespace=testns1
+```
+
+Get:
+
+```
+kubectl get ContainerDiagnostic diag1 --namespace=testns1
+```
 
 ### ContainerDiagnostic
 
