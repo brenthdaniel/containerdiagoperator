@@ -47,8 +47,6 @@ spec:
                 - version
                 - listjava
                 type: string
-            required:
-            - arguments
             type: object
           status:
             description: ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
@@ -58,10 +56,13 @@ spec:
               result:
                 type: string
               state:
-                type: integer
+                default: init
+                enum:
+                - init
+                - error
+                - finished
+                type: string
             required:
-            - log
-            - result
             - state
             type: object
         type: object

@@ -24,18 +24,25 @@ import (
 type ContainerDiagnosticSpec struct {
 
 	// Command is one of: version, listjava
+	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=version;listjava
 	Command string `json:"command,omitempty"`
 
+	// +kubebuilder:validation:Optional
 	Arguments []string `json:"arguments"`
 }
 
 // ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
 type ContainerDiagnosticStatus struct {
-	State int `json:"state"`
 
+	// +kubebuilder:default=init
+	// +kubebuilder:validation:Enum=init;error;finished
+	State string `json:"state"`
+
+	// +kubebuilder:validation:Optional
 	Result string `json:"result"`
 
+	// +kubebuilder:validation:Optional
 	Log string `json:"log"`
 }
 

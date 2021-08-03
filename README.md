@@ -6,7 +6,9 @@ ContainerDiagnostic CRD and diagnostic controller
 
 ### Update Spec
 
-1. [Update `api/v1/*_types.go`](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#define-the-api)
+1. Update `api/v1/*_types.go`
+    1. [General guidelines](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#define-the-api)
+    1. [kubebuilder validation](https://book.kubebuilder.io/reference/markers/crd-validation.html)
 1. `make generate`
 
 ### Build and Deploy
@@ -16,6 +18,10 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
 1. Increment version in `main.go`:
    ```
    const OPERATOR_VERSION = "0.4.20210803"
+   ```
+1. If you updated `api/v1/*_types.go`, then:
+   ```
+   make generate
    ```
 1. `docker login`
 1. Build and push to [DockerHub](https://hub.docker.com/r/kgibm/containerdiagoperator) (increment version):
