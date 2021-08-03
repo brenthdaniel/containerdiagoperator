@@ -84,7 +84,7 @@ Get:
 ```
 $ kubectl get ContainerDiagnostic diag1 --namespace=testns1
 NAME    STARTED   COMMAND   ARGUMENTS   RESULT                  STATUSCODE   STATUSMESSAGE
-diag1   7m24s     version   ["a","b"]   Version 0.12.20210803   0            success
+diag1   7m24s     version               Version 0.12.20210803   0            success
 ```
 
 Delete:
