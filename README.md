@@ -128,5 +128,5 @@ DESCRIPTION:
 
 FIELDS:
    command	<string>
-     Command is one of: listjava
+     Command is one of: version
 ```
