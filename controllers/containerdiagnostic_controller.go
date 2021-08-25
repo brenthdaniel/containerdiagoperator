@@ -30,7 +30,7 @@ import (
 	diagnosticv1 "github.com/kgibm/containerdiagoperator/api/v1"
 )
 
-const OperatorVersion = "0.12.20210825"
+const OperatorVersion = "0.14.20210825"
 
 type StatusEnum int
 
@@ -92,6 +92,8 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 	switch containerDiagnostic.Spec.Command {
 	case "version":
 		return r.CommandVersion(ctx, req, containerDiagnostic, logger)
+	case "script":
+		return r.CommandScript(ctx, req, containerDiagnostic, logger)
 	}
 
 	return ctrl.Result{}, nil
@@ -99,6 +101,27 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 
 func (r *ContainerDiagnosticReconciler) CommandVersion(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
 	logger.Info("Processing command: version")
+
+	containerDiagnostic.Status.StatusCode = int(Success)
+	containerDiagnostic.Status.StatusMessage = Success.ToString()
+	containerDiagnostic.Status.Result = fmt.Sprintf("Version %s", OperatorVersion)
+	err := r.Status().Update(ctx, containerDiagnostic)
+	if err != nil {
+		logger.Error(err, "Failed to update ContainerDiagnostic status")
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
+	logger.Info("Processing command: script")
+
+	if containerDiagnostic.Spec.TargetObjects != nil {
+		for _, targetObject := range containerDiagnostic.Spec.TargetObjects {
+			logger.Info(fmt.Sprintf("targetObject: %+v", targetObject))
+		}
+	}
 
 	containerDiagnostic.Status.StatusCode = int(Success)
 	containerDiagnostic.Status.StatusMessage = Success.ToString()

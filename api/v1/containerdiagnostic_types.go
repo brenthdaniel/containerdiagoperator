@@ -17,19 +17,34 @@ limitations under the License.
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+type ContainerDiagnosticStep struct {
+	// +kubebuilder:validation:Required
+	Command string `json:"command"`
+
+	// +kubebuilder:validation:Optional
+	Arguments []string `json:"arguments"`
+}
 
 // ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
 type ContainerDiagnosticSpec struct {
 
-	// Command is one of: version, listjava
+	// Command is one of: version, script
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=version;listjava
+	// +kubebuilder:validation:Enum=version;script
 	Command string `json:"command,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	Arguments []string `json:"arguments"`
+
+	// +kubebuilder:validation:Optional
+	TargetObjects []corev1.ObjectReference `json:"targetObjects"`
+
+	// +kubebuilder:validation:Optional
+	Steps []ContainerDiagnosticStep `json:"steps"`
 }
 
 // ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
@@ -46,16 +61,18 @@ type ContainerDiagnosticStatus struct {
 
 	// +kubebuilder:validation:Optional
 	Log string `json:"log"`
+
+	// +kubebuilder:validation:Optional
+	Download string `json:"download"`
 }
 
 // ContainerDiagnostic is the Schema for the containerdiagnostics API
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Command",type=string,JSONPath=`.spec.command`
-// +kubebuilder:printcolumn:name="Arguments",type=string,JSONPath=`.spec.arguments`
-// +kubebuilder:printcolumn:name="Result",type=string,JSONPath=`.status.result`
-// +kubebuilder:printcolumn:name="StatusCode",type=integer,JSONPath=`.status.statusCode`
 // +kubebuilder:printcolumn:name="StatusMessage",type=string,JSONPath=`.status.statusMessage`
+// +kubebuilder:printcolumn:name="Result",type=string,JSONPath=`.status.result`
+// +kubebuilder:printcolumn:name="Download",type=string,JSONPath=`.status.download`
 type ContainerDiagnostic struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

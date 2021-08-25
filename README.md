@@ -130,3 +130,7 @@ FIELDS:
    command	<string>
      Command is one of: version
 ```
+
+### Education
+
+* [Building Operators](https://book.kubebuilder.io/introduction.html)
