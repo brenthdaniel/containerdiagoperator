@@ -30,7 +30,7 @@ import (
 	diagnosticv1 "github.com/kgibm/containerdiagoperator/api/v1"
 )
 
-const OperatorVersion = "0.12.20210803"
+const OperatorVersion = "0.12.20210825"
 
 type StatusEnum int
 

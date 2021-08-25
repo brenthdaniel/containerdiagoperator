@@ -17,9 +17,6 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .metadata.creationTimestamp
-      name: Started
-      type: date
     - jsonPath: .spec.command
       name: Command
       type: string

@@ -2,19 +2,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: |-
-      [
-        {
-          "apiVersion": "diagnostic.ibm.com/v1",
-          "kind": "ContainerDiagnostic",
-          "metadata": {
-            "name": "containerdiagnostic-sample"
-          },
-          "spec": {
-            "foo": "bar"
-          }
-        }
-      ]
+    alm-examples: '[]'
     capabilities: Basic Install
     operators.operatorframework.io/builder: operator-sdk-v1.9.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -109,7 +97,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: kgibm/containerdiagoperator:v0.0.1
+                image: controller:latest
                 livenessProbe:
                   httpGet:
                     path: /healthz

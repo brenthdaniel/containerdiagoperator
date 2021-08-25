@@ -15,7 +15,7 @@ ContainerDiagnostic CRD and diagnostic controller
 
 Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/).
 
-1. Increment version in `controllers/containerdiagnostic_controller.go`:
+1. Update the version in `controllers/containerdiagnostic_controller.go`. For example:
    ```
    const OPERATOR_VERSION = "0.4.20210803"
    ```
@@ -27,11 +27,11 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
    docker login
    ```
-1. Build and push to [DockerHub](https://hub.docker.com/r/kgibm/containerdiagoperator) (increment version):
+1. Build and push to [DockerHub](https://hub.docker.com/r/kgibm/containerdiagoperator). For example, match the version to the version above:
    ```
    make docker-build docker-push IMG="kgibm/containerdiagoperator:0.4.20210803"
    ```
-1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context):
+1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context). For example, match the version to the version above:
    ```
    make deploy IMG="kgibm/containerdiagoperator:0.4.20210803"
    ```
@@ -41,7 +41,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    NAME                                                       READY   STATUS    RESTARTS   AGE
    containerdiagoperator-controller-manager-5c65d5b66-zc4v4   2/2     Running   0          22s
    ```
-1. Show operator logs:
+1. Show operator logs. For example, change the pod name to the name displayed in the previous step:
    ```
    $ kubectl logs --container=manager --namespace=containerdiagoperator-system containerdiagoperator-controller-manager-5c65d5b66-zc4v4
    2021-06-23T16:40:15.930Z	INFO	controller-runtime.metrics	metrics server is starting to listen	{"addr": "127.0.0.1:8080"}
