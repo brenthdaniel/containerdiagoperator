@@ -31,7 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-const OperatorVersion = "0.15.20210825"
+const OperatorVersion = "0.18.20210825"
 
 type StatusEnum int
 
@@ -124,14 +124,25 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 	if containerDiagnostic.Spec.TargetObjects != nil {
 		for _, targetObject := range containerDiagnostic.Spec.TargetObjects {
+
 			logger.Info(fmt.Sprintf("targetObject: %+v", targetObject))
+
 			pod := &corev1.Pod{}
-			_ = r.Get(context.Background(), client.ObjectKey{
+			err := r.Get(context.Background(), client.ObjectKey{
 				Namespace: targetObject.Namespace,
 				Name:      targetObject.Name,
 			}, pod)
 
-			logger.Info(fmt.Sprintf("found pod: %+v", pod))
+			if err == nil {
+				logger.Info(fmt.Sprintf("found pod: %+v", pod))
+			} else {
+				if errors.IsNotFound(err) {
+					logger.Info("Pod not found. Ignoring since object must be deleted")
+				} else {
+					logger.Error(err, "Failed to get targetObject")
+					return ctrl.Result{}, err
+				}
+			}
 		}
 	}
 
