@@ -28,9 +28,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	diagnosticv1 "github.com/kgibm/containerdiagoperator/api/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
-const OperatorVersion = "0.14.20210825"
+const OperatorVersion = "0.15.20210825"
 
 type StatusEnum int
 
@@ -57,6 +58,10 @@ type ContainerDiagnosticReconciler struct {
 //+kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics/finalizers,verbs=update
+//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
+//+kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
+//+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=pods/status,verbs=get
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -120,6 +125,13 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 	if containerDiagnostic.Spec.TargetObjects != nil {
 		for _, targetObject := range containerDiagnostic.Spec.TargetObjects {
 			logger.Info(fmt.Sprintf("targetObject: %+v", targetObject))
+			pod := &corev1.Pod{}
+			_ = r.Get(context.Background(), client.ObjectKey{
+				Namespace: targetObject.Namespace,
+				Name:      targetObject.Name,
+			}, pod)
+
+			logger.Info(fmt.Sprintf("found pod: %+v", pod))
 		}
 	}
 

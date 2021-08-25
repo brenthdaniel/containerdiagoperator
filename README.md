@@ -58,11 +58,9 @@ make undeploy
 
 #### Test using version command
 
-Create:
+Create example:
 
-```
-printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s}}' diag1 testns1 version '[]' | kubectl create -f -
-```
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 testns1 script '[]' '[{"name": "liberty1-774c5fccc6-f7mjt"}]' '[]' | kubectl create -f -`
 
 Describe:
 
