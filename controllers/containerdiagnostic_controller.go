@@ -31,7 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-const OperatorVersion = "0.18.20210825"
+const OperatorVersion = "0.19.20210830"
 
 type StatusEnum int
 
@@ -135,6 +135,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 			if err == nil {
 				logger.Info(fmt.Sprintf("found pod: %+v", pod))
+				r.RunScriptOnPod(ctx, req, containerDiagnostic, logger, pod)
 			} else {
 				if errors.IsNotFound(err) {
 					logger.Info("Pod not found. Ignoring since object must be deleted")
@@ -156,6 +157,12 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *ContainerDiagnosticReconciler) RunScriptOnPod(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod) {
+	for _, container := range pod.Spec.Containers {
+		logger.Info(fmt.Sprintf("RunScriptOnPod container: %+v", container))
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.

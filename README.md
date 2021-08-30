@@ -17,23 +17,28 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
 
 1. Update the version in `controllers/containerdiagnostic_controller.go`. For example:
    ```
-   const OPERATOR_VERSION = "0.4.20210803"
+   const OperatorVersion = "0.4.20210803"
    ```
 1. If you updated `api/v1/*_types.go`, then:
    ```
    make generate
    ```
+1. If you updated [controller RBAC manifests](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#specify-permissions-and-generate-rbac-manifests), then:
+   ```
+   make manifests
+   ```
 1. If needed, log into DockerHub:
    ```
    docker login
    ```
-1. Build and push to [DockerHub](https://hub.docker.com/r/kgibm/containerdiagoperator). For example, match the version to the version above:
+1. Build and push to [DockerHub](https://hub.docker.com/r/kgibm/containerdiagoperator). For example:
    ```
-   make docker-build docker-push IMG="kgibm/containerdiagoperator:0.4.20210803"
+   make docker-build docker-push IMG="kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
    ```
-1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context). For example, match the version to the version above:
+    * If you want to build without pushing: `make build`
+1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context). For example, replace $OPERATOR_VERSION with the version above:
    ```
-   make deploy IMG="kgibm/containerdiagoperator:0.4.20210803"
+   make deploy IMG="kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
    ```
 1. List operator pods:
    ```
@@ -60,7 +65,7 @@ make undeploy
 
 Create example:
 
-`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 testns1 script '[]' '[{"name": "liberty1-774c5fccc6-f7mjt"}]' '[]' | kubectl create -f -`
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag2 testns1 script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[]' | kubectl create -f - `
 
 Describe:
 
