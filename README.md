@@ -83,11 +83,16 @@ $ kubectl describe ContainerDiagnostic diag1 --namespace=testns1
 Spec:
   Command:  version
 Status:
+  Download:        
   Log:             
-  Result:          Version 0.12.20210803
-  Status Code:     0
+  Result:          Version 0.28.20210830
+  Status Code:     1
   Status Message:  success
-Events:            <none>
+Events:
+  Type    Reason         Age    From                 Message
+  ----    ------         ----   ----                 -------
+  Normal  Informational  4m18s  containerdiagnostic  Reconciling ContainerDiagnostic name: diag1, namespace: testns1, command: script, status: uninitialized
+  Normal  Informational  4m18s  containerdiagnostic  Reconciling ContainerDiagnostic name: diag1, namespace: testns1, command: script, status: success
 ```
 
 Delete:
