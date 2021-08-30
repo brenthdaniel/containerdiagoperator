@@ -134,6 +134,7 @@ FIELDS:
      Command is one of: version
 ```
 
-### Education
+### Notes
 
 * [Building Operators](https://book.kubebuilder.io/introduction.html)
+* Add Go module dependency (example): `GO111MODULE=on go get github.com/...`
