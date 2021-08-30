@@ -4,13 +4,6 @@ ContainerDiagnostic CRD and diagnostic controller
 
 ## Development
 
-### Update Spec
-
-1. Update `api/v1/*_types.go`
-    1. [General guidelines](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#define-the-api)
-    1. [kubebuilder validation](https://book.kubebuilder.io/reference/markers/crd-validation.html)
-1. `make generate`
-
 ### Build and Deploy
 
 Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/).
@@ -59,6 +52,13 @@ To destroy the CRD and all CRs:
 make undeploy
 ```
 
+### Update Spec
+
+1. Update `api/v1/*_types.go`
+    1. [General guidelines](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#define-the-api)
+    1. [kubebuilder validation](https://book.kubebuilder.io/reference/markers/crd-validation.html)
+1. `make generate`
+
 ### Create ContainerDiagnostic
 
 #### Test using version command
@@ -72,7 +72,7 @@ Get:
 ```
 $ kubectl get ContainerDiagnostic diag1 --namespace=testns1
 NAME    COMMAND   STATUSMESSAGE   RESULT                  DOWNLOAD
-diag1   script    success         Version 0.28.20210830   
+diag1   version   success         Version 0.28.20210830   
 ```
 
 Describe:
