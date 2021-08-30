@@ -67,6 +67,14 @@ Create example:
 
 `printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 testns1 script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[]' | kubectl create -f -`
 
+Get:
+
+```
+$ kubectl get ContainerDiagnostic diag1 --namespace=testns1
+NAME    COMMAND   STATUSMESSAGE   RESULT                  DOWNLOAD
+diag1   script    success         Version 0.28.20210830   
+```
+
 Describe:
 
 ```
@@ -80,14 +88,6 @@ Status:
   Status Code:     0
   Status Message:  success
 Events:            <none>
-```
-
-Get:
-
-```
-$ kubectl get ContainerDiagnostic diag1 --namespace=testns1
-NAME    STARTED   COMMAND   ARGUMENTS   RESULT                  STATUSCODE   STATUSMESSAGE
-diag1   7m24s     version               Version 0.12.20210803   0            success
 ```
 
 Delete:
@@ -146,4 +146,5 @@ FIELDS:
     * [ctrl.Manager](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/manager#Manager)
     * [Logger](https://pkg.go.dev/github.com/go-logr/logr)
         * "This package restricts the logging API to just 2 types of logs: info and error."
+        * "To write log lines that are more verbose, Logger has a V() method. The higher the V-level of a log line, the less critical it is considered. Log-lines with V-levels that are not enabled (as per the LogSink) will not be written. Level V(0) is the default, and logger.V(0).Info() has the same meaning as logger.Info(). Negative V-levels have the same meaning as V(0)."
 * Add Go module dependency (example): `GO111MODULE=on go get github.com/...`
