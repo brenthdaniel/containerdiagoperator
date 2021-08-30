@@ -33,10 +33,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.23.20210830"
+const OperatorVersion = "0.28.20210830"
 
 type StatusEnum int
 
@@ -63,8 +64,9 @@ func (se StatusEnum) Value() int {
 // ContainerDiagnosticReconciler reconciles a ContainerDiagnostic object
 type ContainerDiagnosticReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Config *rest.Config
+	Scheme        *runtime.Scheme
+	Config        *rest.Config
+	EventRecorder record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics,verbs=get;list;watch;create;update;patch;delete
@@ -104,7 +106,7 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, err
 	}
 
-	logger.Info(fmt.Sprintf("ContainerDiagnostic command: %s, status: %d", containerDiagnostic.Spec.Command, containerDiagnostic.Status.StatusCode))
+	r.RecordEventInfo(fmt.Sprintf("Reconciling ContainerDiagnostic name: %s, namespace: %s, command: %s, status: %s", containerDiagnostic.Name, containerDiagnostic.Namespace, containerDiagnostic.Spec.Command, StatusEnum(containerDiagnostic.Status.StatusCode).ToString()), containerDiagnostic, logger)
 
 	if containerDiagnostic.Status.StatusCode == Uninitialized.Value() {
 		switch containerDiagnostic.Spec.Command {
@@ -116,6 +118,19 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *ContainerDiagnosticReconciler) RecordEventInfo(message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) {
+	logger.Info(message)
+
+	// https://pkg.go.dev/k8s.io/client-go/tools/record#EventRecorder
+	r.EventRecorder.Event(containerDiagnostic, corev1.EventTypeNormal, "Informational", message)
+}
+
+func (r *ContainerDiagnosticReconciler) RecordEventWarning(err error, message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) {
+	logger.Error(err, message)
+	// k8s only has normal and warning event types
+	r.EventRecorder.Event(containerDiagnostic, corev1.EventTypeWarning, "Warning", message)
 }
 
 func (r *ContainerDiagnosticReconciler) CommandVersion(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
@@ -187,7 +202,6 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	clientset, err := kubernetes.NewForConfig(r.Config)
 	if err != nil {
 		logger.Error(err, "Error creating Clientset")
-		//return "", fmt.Errorf("Error creating Clientset: %v", err.Error())
 	}
 
 	restRequest := clientset.CoreV1().RESTClient().Post().
@@ -206,7 +220,6 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	exec, err := remotecommand.NewSPDYExecutor(r.Config, "POST", restRequest.URL())
 	if err != nil {
-		//return "", fmt.Errorf("Encountered error while creating Executor: %v", err.Error())
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -216,20 +229,16 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		Tty:    false,
 	})
 
-	if err != nil {
-		//return stderr.String(), fmt.Errorf("Encountered error while running command: %v ; Stderr: %v ; Error: %v", command, stderr.String(), err.Error())
-	}
-
 	logger.Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
-
-	//return stderr.String(), nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ContainerDiagnosticReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/builder#Builder
 	result := ctrl.NewControllerManagedBy(mgr).
 		For(&diagnosticv1.ContainerDiagnostic{}).
 		Complete(r)
 	r.Config = mgr.GetConfig()
+	r.EventRecorder = mgr.GetEventRecorderFor("containerdiagnostic")
 	return result
 }

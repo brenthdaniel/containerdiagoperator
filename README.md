@@ -136,5 +136,14 @@ FIELDS:
 
 ### Notes
 
-* [Building Operators](https://book.kubebuilder.io/introduction.html)
+* Education:
+    * [Building Operators](https://book.kubebuilder.io/introduction.html)
+    * [Using the client](https://sdk.operatorframework.io/docs/building-operators/golang/references/client/)
+* APIs:
+    * [Pod](https://pkg.go.dev/k8s.io/api/core/v1#Pod)
+    * [Container](https://pkg.go.dev/k8s.io/api/core/v1#Container)
+    * [Clientset](https://pkg.go.dev/k8s.io/client-go/kubernetes)
+    * [ctrl.Manager](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/manager#Manager)
+    * [Logger](https://pkg.go.dev/github.com/go-logr/logr)
+        * "This package restricts the logging API to just 2 types of logs: info and error."
 * Add Go module dependency (example): `GO111MODULE=on go get github.com/...`
