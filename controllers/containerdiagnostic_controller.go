@@ -31,22 +31,28 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-const OperatorVersion = "0.19.20210830"
+const OperatorVersion = "0.22.20210830"
 
 type StatusEnum int
 
 const (
-	Success StatusEnum = iota
+	Uninitialized StatusEnum = iota
+	Success
 	Error
 )
 
 var StatusEnumNames = []string{
+	"uninitialized",
 	"success",
 	"error",
 }
 
 func (se StatusEnum) ToString() string {
 	return StatusEnumNames[se]
+}
+
+func (se StatusEnum) Value() int {
+	return int(se)
 }
 
 // ContainerDiagnosticReconciler reconciles a ContainerDiagnostic object
@@ -92,13 +98,15 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, err
 	}
 
-	logger.Info(fmt.Sprintf("ContainerDiagnostic command: %s", containerDiagnostic.Spec.Command))
+	logger.Info(fmt.Sprintf("ContainerDiagnostic command: %s, status: %d", containerDiagnostic.Spec.Command, containerDiagnostic.Status.StatusCode))
 
-	switch containerDiagnostic.Spec.Command {
-	case "version":
-		return r.CommandVersion(ctx, req, containerDiagnostic, logger)
-	case "script":
-		return r.CommandScript(ctx, req, containerDiagnostic, logger)
+	if containerDiagnostic.Status.StatusCode == Uninitialized.Value() {
+		switch containerDiagnostic.Spec.Command {
+		case "version":
+			return r.CommandVersion(ctx, req, containerDiagnostic, logger)
+		case "script":
+			return r.CommandScript(ctx, req, containerDiagnostic, logger)
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -160,9 +168,15 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 }
 
 func (r *ContainerDiagnosticReconciler) RunScriptOnPod(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod) {
+	logger.Info(fmt.Sprintf("RunScriptOnPod containers: %d", len(pod.Spec.Containers)))
 	for _, container := range pod.Spec.Containers {
 		logger.Info(fmt.Sprintf("RunScriptOnPod container: %+v", container))
+		r.RunScriptOnContainer(ctx, req, containerDiagnostic, logger, pod, container)
 	}
+}
+
+func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container) {
+	logger.Info(fmt.Sprintf("RunScriptOnContainer pod: %s, container: %s", pod.Name, container.Name))
 }
 
 // SetupWithManager sets up the controller with the Manager.
