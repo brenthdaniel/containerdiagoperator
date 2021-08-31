@@ -39,7 +39,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.41.20210831"
+const OperatorVersion = "0.44.20210831"
 
 const ResultProcessing = "Processing..."
 
@@ -273,13 +273,25 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	resultsTracker.visited++
 
-	clientset, err := kubernetes.NewForConfig(r.Config)
+	var stdout, stderr bytes.Buffer
+	err := r.ExecInContainer(pod, container, []string{"/bin/sh", "-c", "ls -l /"}, &stdout, &stderr)
+
 	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error creating Clientset: %+v", err), containerDiagnostic, logger)
+		r.SetStatus(StatusError, fmt.Sprintf("Error exec'ing in container: %+v", err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will shows as error; othewrise, as mixed
+		// only error, status will show as error; othewrise, as mixed
 		return
+	}
+
+	resultsTracker.successes++
+	logger.Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
+}
+
+func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, container corev1.Container, command []string, stdout *bytes.Buffer, stderr *bytes.Buffer) error {
+	clientset, err := kubernetes.NewForConfig(r.Config)
+	if err != nil {
+		return err
 	}
 
 	restRequest := clientset.CoreV1().RESTClient().Post().
@@ -289,7 +301,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		SubResource("exec")
 
 	restRequest.VersionedParams(&corev1.PodExecOptions{
-		Command:   []string{"/bin/sh", "-c", "ls -l /"},
+		Command:   command,
 		Container: container.Name,
 		Stdout:    true,
 		Stderr:    true,
@@ -298,29 +310,16 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	exec, err := remotecommand.NewSPDYExecutor(r.Config, "POST", restRequest.URL())
 	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error exec'ing: %+v", err), containerDiagnostic, logger)
-
-		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will shows as error; othewrise, as mixed
-		return
+		return err
 	}
 
-	var stdout, stderr bytes.Buffer
 	err = exec.Stream(remotecommand.StreamOptions{
-		Stdout: &stdout,
-		Stderr: &stderr,
+		Stdout: stdout,
+		Stderr: stderr,
 		Tty:    false,
 	})
 
-	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error getting stream: %+v", err), containerDiagnostic, logger)
-
-		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will shows as error; othewrise, as mixed
-		return
-	}
-	resultsTracker.successes++
-	logger.Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
+	return err
 }
 
 // SetupWithManager sets up the controller with the Manager.
