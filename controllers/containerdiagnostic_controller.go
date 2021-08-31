@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -38,20 +39,24 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.31.20210830"
+const OperatorVersion = "0.33.20210831"
+
+const ResultProcessing = "Processing..."
 
 type StatusEnum int
 
 const (
-	Uninitialized StatusEnum = iota
-	Success
-	Error
+	StatusUninitialized StatusEnum = iota
+	StatusSuccess
+	StatusError
+	StatusMixed
 )
 
 var StatusEnumNames = []string{
 	"uninitialized",
 	"success",
 	"error",
+	"mixed",
 }
 
 func (se StatusEnum) ToString() string {
@@ -68,6 +73,10 @@ type ContainerDiagnosticReconciler struct {
 	Scheme        *runtime.Scheme
 	Config        *rest.Config
 	EventRecorder record.EventRecorder
+}
+
+type ResultsTracker struct {
+	successes int
 }
 
 //+kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics,verbs=get;list;watch;create;update;patch;delete
@@ -109,10 +118,15 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 
 	r.RecordEventInfo(fmt.Sprintf("Started reconciling ContainerDiagnostic name: %s, namespace: %s, command: %s, status: %s @ %s", containerDiagnostic.Name, containerDiagnostic.Namespace, containerDiagnostic.Spec.Command, StatusEnum(containerDiagnostic.Status.StatusCode).ToString(), CurrentTimeAsString()), containerDiagnostic, logger)
 
+	logger.Info(fmt.Sprintf("Reconciling ContainerDiagnostic: %v", containerDiagnostic))
+
+	// This is just a marker status
+	containerDiagnostic.Status.Result = ResultProcessing
+
 	var result ctrl.Result = ctrl.Result{}
 	err = nil
 
-	if containerDiagnostic.Status.StatusCode == Uninitialized.Value() {
+	if containerDiagnostic.Status.StatusCode == StatusUninitialized.Value() {
 		switch containerDiagnostic.Spec.Command {
 		case "version":
 			result, err = r.CommandVersion(ctx, req, containerDiagnostic, logger)
@@ -124,8 +138,17 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 	return r.ProcessResult(result, err, ctx, containerDiagnostic, logger)
 }
 
-func OverwriteResult(message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic) {
-	containerDiagnostic.Status.Result = message
+func SetStatus(status StatusEnum, message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) {
+	r.RecordEventWarning(err, fmt.Sprintf("Status update (%s): %s @ %s", status.ToString(), message, CurrentTimeAsString()), containerDiagnostic, logger)
+	if strings.HasPrefix(containerDiagnostic.Status.Result, ResultProcessing) {
+		containerDiagnostic.Status.StatusCode = int(status)
+		containerDiagnostic.Status.StatusMessage = status.ToString()
+		containerDiagnostic.Status.Result = message
+	} else {
+		containerDiagnostic.Status.StatusCode = int(StatusMixed)
+		containerDiagnostic.Status.StatusMessage = StatusMixed.ToString()
+		containerDiagnostic.Status.Result = "Mixed results; describe and review Events."
+	}
 }
 
 func CurrentTimeAsString() string {
@@ -135,23 +158,21 @@ func CurrentTimeAsString() string {
 func (r *ContainerDiagnosticReconciler) ProcessResult(result ctrl.Result, err error, ctx context.Context, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
 	if err == nil {
 		r.RecordEventInfo(fmt.Sprintf("Finished reconciling successfully @ %s", CurrentTimeAsString()), containerDiagnostic, logger)
-		containerDiagnostic.Status.StatusCode = int(Success)
-		containerDiagnostic.Status.StatusMessage = Success.ToString()
 	} else {
-		r.RecordEventWarning(err, fmt.Sprintf("Finished reconciling with error @ %s", CurrentTimeAsString()), containerDiagnostic, logger)
-		containerDiagnostic.Status.StatusCode = int(Error)
-		containerDiagnostic.Status.StatusMessage = Error.ToString()
-		OverwriteResult(fmt.Sprintf("Error: %s", err.Error()), containerDiagnostic)
+		r.RecordEventWarning(err, fmt.Sprintf("Finished reconciling with error %v @ %s", err, CurrentTimeAsString()), containerDiagnostic, logger)
+		SetStatus(StatusError, fmt.Sprintf("Error: %s", err.Error()), containerDiagnostic, logger)
 	}
 
-	statusErr := r.Status().Update(ctx, containerDiagnostic)
-	if statusErr != nil {
-		logger.Error(statusErr, "Failed to update ContainerDiagnostic status")
-		if err == nil {
-			return ctrl.Result{}, statusErr
-		} else {
-			// If we're already processing an error, don't override that
-			// with the status update error
+	if !strings.HasPrefix(containerDiagnostic.Status.Result, ResultProcessing) {
+		statusErr := r.Status().Update(ctx, containerDiagnostic)
+		if statusErr != nil {
+			logger.Error(statusErr, fmt.Sprintf("Failed to update ContainerDiagnostic status: %v", statusErr))
+			if err == nil {
+				return ctrl.Result{}, statusErr
+			} else {
+				// If we're already processing an error, don't override that
+				// with the status update error
+			}
 		}
 	}
 
@@ -174,13 +195,15 @@ func (r *ContainerDiagnosticReconciler) RecordEventWarning(err error, message st
 func (r *ContainerDiagnosticReconciler) CommandVersion(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
 	logger.Info("Processing command: version")
 
-	OverwriteResult(fmt.Sprintf("Version %s", OperatorVersion), containerDiagnostic)
+	SetStatus(StatusSuccess, fmt.Sprintf("Version %s", OperatorVersion), containerDiagnostic, logger)
 
 	return ctrl.Result{}, nil
 }
 
 func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
 	logger.Info("Processing command: script")
+
+	resultsTracker := ResultsTracker{}
 
 	if containerDiagnostic.Spec.TargetObjects != nil {
 		for _, targetObject := range containerDiagnostic.Spec.TargetObjects {
@@ -195,7 +218,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 			if err == nil {
 				logger.V(1).Info(fmt.Sprintf("found pod: %+v", pod))
-				r.RunScriptOnPod(ctx, req, containerDiagnostic, logger, pod)
+				r.RunScriptOnPod(ctx, req, containerDiagnostic, logger, pod, &resultsTracker)
 			} else {
 				if errors.IsNotFound(err) {
 					logger.Info("Pod not found. Ignoring since object must be deleted")
@@ -207,20 +230,20 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 		}
 	}
 
-	OverwriteResult(fmt.Sprintf("Finished"), containerDiagnostic)
+	SetStatus(StatusSuccess, fmt.Sprintf("Successfully finished on %d containers", resultsTracker.successes), containerDiagnostic, logger)
 
 	return ctrl.Result{}, nil
 }
 
-func (r *ContainerDiagnosticReconciler) RunScriptOnPod(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod) {
+func (r *ContainerDiagnosticReconciler) RunScriptOnPod(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, resultsTracker *ResultsTracker) {
 	logger.Info(fmt.Sprintf("RunScriptOnPod containers: %d", len(pod.Spec.Containers)))
 	for _, container := range pod.Spec.Containers {
 		logger.Info(fmt.Sprintf("RunScriptOnPod container: %+v", container))
-		r.RunScriptOnContainer(ctx, req, containerDiagnostic, logger, pod, container)
+		r.RunScriptOnContainer(ctx, req, containerDiagnostic, logger, pod, container, resultsTracker)
 	}
 }
 
-func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container) {
+func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, resultsTracker *ResultsTracker) {
 	logger.Info(fmt.Sprintf("RunScriptOnContainer pod: %s, container: %s", pod.Name, container.Name))
 
 	clientset, err := kubernetes.NewForConfig(r.Config)
@@ -252,6 +275,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		Stderr: &stderr,
 		Tty:    false,
 	})
+
+	resultsTracker.successes++
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
 }
