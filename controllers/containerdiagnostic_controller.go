@@ -17,10 +17,13 @@ limitations under the License.
 package controllers
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -39,7 +42,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.48.20210831"
+const OperatorVersion = "0.53.20210831"
 
 const ResultProcessing = "Processing..."
 
@@ -273,8 +276,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	resultsTracker.visited++
 
+	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer running remote command"))
+
 	var stdout, stderr bytes.Buffer
-	err := r.ExecInContainer(pod, container, []string{"/bin/sh", "-c", "ls -l /"}, &stdout, &stderr)
+	err := r.ExecInContainer(pod, container, []string{"/bin/sh", "-c", "ls -l /"}, &stdout, &stderr, nil)
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error exec'ing in container: %+v", err), containerDiagnostic, logger)
@@ -284,11 +289,50 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		return
 	}
 
+	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
+
+	output, err := exec.Command("tar", "cvf", "/tmp/files.tar", "/usr/bin/ps").Output()
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error creating tar: %+v", err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		return
+	}
+
+	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar: %v", output))
+
+	file, err := os.Open("/tmp/files.tar")
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error reading binary from operator image: %+v", err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		return
+	}
+
+	fileReader := bufio.NewReader(file)
+	logger.Info(fmt.Sprintf("RunScriptOnContainer binary size: %d", fileReader.Size()))
+
+	var tarStdout, tarStderr bytes.Buffer
+	err = r.ExecInContainer(pod, container, []string{"tar", "-xmf", "-", "-C", "/tmp/"}, &tarStdout, &tarStderr, fileReader)
+
+	file.Close()
+
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error tarring: %+v", err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		return
+	}
+
+	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer tar results: stdout: %v stderr: %v", tarStdout.String(), tarStderr.String()))
+
 	resultsTracker.successes++
-	logger.Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
 }
 
-func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, container corev1.Container, command []string, stdout *bytes.Buffer, stderr *bytes.Buffer) error {
+func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, container corev1.Container, command []string, stdout *bytes.Buffer, stderr *bytes.Buffer, stdin *bufio.Reader) error {
 	clientset, err := kubernetes.NewForConfig(r.Config)
 	if err != nil {
 		return err
@@ -300,24 +344,44 @@ func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, contain
 		Namespace(pod.Namespace).
 		SubResource("exec")
 
-	restRequest.VersionedParams(&corev1.PodExecOptions{
-		Command:   command,
-		Container: container.Name,
-		Stdout:    true,
-		Stderr:    true,
-		TTY:       false,
-	}, scheme.ParameterCodec)
+	if stdin == nil {
+		restRequest.VersionedParams(&corev1.PodExecOptions{
+			Command:   command,
+			Container: container.Name,
+			Stdout:    true,
+			Stderr:    true,
+			TTY:       false,
+		}, scheme.ParameterCodec)
+	} else {
+		restRequest.VersionedParams(&corev1.PodExecOptions{
+			Command:   command,
+			Container: container.Name,
+			Stdout:    true,
+			Stderr:    true,
+			Stdin:     true,
+			TTY:       false,
+		}, scheme.ParameterCodec)
+	}
 
 	exec, err := remotecommand.NewSPDYExecutor(r.Config, "POST", restRequest.URL())
 	if err != nil {
 		return err
 	}
 
-	err = exec.Stream(remotecommand.StreamOptions{
-		Stdout: stdout,
-		Stderr: stderr,
-		Tty:    false,
-	})
+	if stdin == nil {
+		err = exec.Stream(remotecommand.StreamOptions{
+			Stdout: stdout,
+			Stderr: stderr,
+			Tty:    false,
+		})
+	} else {
+		err = exec.Stream(remotecommand.StreamOptions{
+			Stdout: stdout,
+			Stderr: stderr,
+			Stdin:  stdin,
+			Tty:    false,
+		})
+	}
 
 	return err
 }
