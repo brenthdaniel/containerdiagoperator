@@ -39,7 +39,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.38.20210831"
+const OperatorVersion = "0.41.20210831"
 
 const ResultProcessing = "Processing..."
 
@@ -275,7 +275,11 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	clientset, err := kubernetes.NewForConfig(r.Config)
 	if err != nil {
-		logger.Error(err, "Error creating Clientset")
+		r.SetStatus(StatusError, fmt.Sprintf("Error creating Clientset: %+v", err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will shows as error; othewrise, as mixed
+		return
 	}
 
 	restRequest := clientset.CoreV1().RESTClient().Post().
@@ -294,6 +298,11 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	exec, err := remotecommand.NewSPDYExecutor(r.Config, "POST", restRequest.URL())
 	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error exec'ing: %+v", err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will shows as error; othewrise, as mixed
+		return
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -303,8 +312,14 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		Tty:    false,
 	})
 
-	resultsTracker.successes++
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error getting stream: %+v", err), containerDiagnostic, logger)
 
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will shows as error; othewrise, as mixed
+		return
+	}
+	resultsTracker.successes++
 	logger.Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
 }
 
