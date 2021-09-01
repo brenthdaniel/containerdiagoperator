@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.55.20210901"
+const OperatorVersion = "0.56.20210901"
 
 const ResultProcessing = "Processing..."
 
@@ -312,13 +312,16 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		}
 	}
 
+	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar..."))
+
+	var tarCommand []string = []string{"cvf", "/tmp/files.tar", "/usr/bin/ps"}
+
 	for _, line := range lines {
 		logger.Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
+		tarCommand = append(tarCommand, line)
 	}
 
-	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar: %v", output))
-
-	output, err = exec.Command("tar", "cvf", "/tmp/files.tar", "/usr/bin/ps").Output()
+	output, err = exec.Command("tar", tarCommand...).Output()
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error creating tar: %+v", err), containerDiagnostic, logger)
 
@@ -327,7 +330,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		return
 	}
 
-	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar: %v", output))
+	var outputStr string = string(output[:])
+	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar: %v", outputStr))
 
 	file, err := os.Open("/tmp/files.tar")
 	if err != nil {

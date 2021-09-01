@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: kgibm/containerdiagoperator
-  newTag: 0.55.20210901
+  newTag: 0.56.20210901
