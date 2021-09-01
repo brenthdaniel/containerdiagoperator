@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.56.20210901"
+const OperatorVersion = "0.59.20210901"
 
 const ResultProcessing = "Processing..."
 
@@ -278,8 +278,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer running remote command"))
 
+	containerTmpFilesPrefix := "/tmp/containerdiag/"
+
 	var stdout, stderr bytes.Buffer
-	err := r.ExecInContainer(pod, container, []string{"/bin/sh", "-c", "ls -l /"}, &stdout, &stderr, nil)
+	err := r.ExecInContainer(pod, container, []string{"mkdir", "-p", containerTmpFilesPrefix}, &stdout, &stderr, nil)
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error exec'ing in container: %+v", err), containerDiagnostic, logger)
@@ -314,7 +316,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar..."))
 
-	var tarCommand []string = []string{"cvf", "/tmp/files.tar", "/usr/bin/ps"}
+	var tarCommand []string = []string{"-cv", "--dereference", "-f", "/tmp/files.tar", "/usr/bin/ps"}
 
 	for _, line := range lines {
 		logger.Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
@@ -346,7 +348,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	logger.Info(fmt.Sprintf("RunScriptOnContainer binary size: %d", fileReader.Size()))
 
 	var tarStdout, tarStderr bytes.Buffer
-	err = r.ExecInContainer(pod, container, []string{"tar", "-xmf", "-", "-C", "/tmp/"}, &tarStdout, &tarStderr, fileReader)
+	err = r.ExecInContainer(pod, container, []string{"tar", "-xmf", "-", "-C", containerTmpFilesPrefix}, &tarStdout, &tarStderr, fileReader)
 
 	file.Close()
 
