@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.53.20210831"
+const OperatorVersion = "0.55.20210901"
 
 const ResultProcessing = "Processing..."
 
@@ -291,7 +291,34 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
 
-	output, err := exec.Command("tar", "cvf", "/tmp/files.tar", "/usr/bin/ps").Output()
+	output, err := exec.Command("ldd", "/usr/bin/ps").Output()
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error executing ldd: %+v", err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		return
+	}
+
+	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd results: %v", output))
+
+	var lines []string
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		var line string = scanner.Text()
+		if strings.Contains(line, "=>") {
+			var pieces []string = strings.Split(line, " ")
+			lines = append(lines, pieces[2])
+		}
+	}
+
+	for _, line := range lines {
+		logger.Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
+	}
+
+	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar: %v", output))
+
+	output, err = exec.Command("tar", "cvf", "/tmp/files.tar", "/usr/bin/ps").Output()
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error creating tar: %+v", err), containerDiagnostic, logger)
 
