@@ -10,7 +10,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
 
 1. Update the version in `controllers/containerdiagnostic_controller.go`. For example:
    ```
-   const OperatorVersion = "0.4.20210803"
+   const OperatorVersion = "0.X.2021YYZZ"
    ```
 1. If you updated `api/v1/*_types.go`, then:
    ```
@@ -29,7 +29,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    make docker-build docker-push IMG="kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
    ```
     * If you want to build without pushing: `make build`
-1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context). For example, replace $OPERATOR_VERSION with the version above:
+1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context). For example:
    ```
    make deploy IMG="kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
    ```
