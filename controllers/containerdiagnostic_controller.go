@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.59.20210901"
+const OperatorVersion = "0.61.20210908"
 
 const ResultProcessing = "Processing..."
 
@@ -293,7 +293,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
 
-	output, err := exec.Command("ldd", "/usr/bin/ps").Output()
+	output, err := exec.Command("ldd", "/usr/bin/top").Output()
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error executing ldd: %+v", err), containerDiagnostic, logger)
 
@@ -316,7 +316,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar..."))
 
-	var tarCommand []string = []string{"-cv", "--dereference", "-f", "/tmp/files.tar", "/usr/bin/ps"}
+	var tarCommand []string = []string{"-cv", "--dereference", "-f", "/tmp/files.tar", "/usr/bin/top"}
 
 	for _, line := range lines {
 		logger.Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
