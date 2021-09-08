@@ -1,6 +1,6 @@
 # containerdiagoperator
 
-ContainerDiagnostic CRD and diagnostic controller
+The goal of this operator is to automate running diagnostics on a container without restarting the container. This works by uploading diagnostic binaries (e.g. `top`) and their dependent shared libraries into a temporary folder in the container and then executing them. This is all packaged into an operator for ease-of-use. Note that [Kubernetes requires the existence of `tar` in the running container to be able to upload files to it](https://github.com/kubernetes/kubernetes/issues/58512).
 
 ## Development
 
