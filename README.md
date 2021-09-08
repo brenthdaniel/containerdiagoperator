@@ -10,7 +10,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
 
 1. Update the version in `controllers/containerdiagnostic_controller.go`. For example:
    ```
-   const OperatorVersion = "0.X.2021YYZZ"
+   const OperatorVersion = "0.X.YYYYMMDD"
    ```
 1. If you updated `api/v1/*_types.go`, then:
    ```
