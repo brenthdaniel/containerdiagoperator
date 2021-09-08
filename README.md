@@ -8,6 +8,10 @@ ContainerDiagnostic CRD and diagnostic controller
 
 Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/).
 
+1. Installation pre-requisities:
+    1. [git](https://git-scm.com/downloads)
+    1. [go](https://golang.org/dl/)
+    1. [operator-sdk](https://sdk.operatorframework.io/docs/installation/)
 1. Update the version in `controllers/containerdiagnostic_controller.go`. For example:
    ```
    const OperatorVersion = "0.X.YYYYMMDD"
