@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.61.20210908"
+const OperatorVersion = "0.62.20210908"
 
 const ResultProcessing = "Processing..."
 
@@ -307,10 +307,13 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	var lines []string
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
-		var line string = scanner.Text()
+		var line string = strings.TrimSpace(scanner.Text())
 		if strings.Contains(line, "=>") {
 			var pieces []string = strings.Split(line, " ")
 			lines = append(lines, pieces[2])
+		} else if strings.Contains(line, "ld-linux") {
+			var pieces []string = strings.Split(line, " ")
+			lines = append(lines, pieces[0])
 		}
 	}
 
