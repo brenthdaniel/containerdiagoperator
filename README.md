@@ -4,9 +4,9 @@ The goal of this operator is to automate running diagnostics on a container with
 
 ## Development
 
-### Build and Deploy
-
 Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/). The main operator controller code is in [containerdiagnostic_controller.go](https://github.com/kgibm/containerdiagoperator/blob/main/controllers/containerdiagnostic_controller.go).
+
+### Build and Deploy
 
 1. Installation pre-requisities:
     1. [git](https://git-scm.com/downloads)
