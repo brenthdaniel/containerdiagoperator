@@ -86,14 +86,14 @@ spec:
 
 ##### JSON
 
-`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 testns1 script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[]' | kubectl create -f -`
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[]' | kubectl create -f -`
 
 #### Showing ContainerDiagnostic resources
 
 Get:
 
 ```
-$ kubectl get ContainerDiagnostic diag1 --namespace=testns1
+$ kubectl get ContainerDiagnostic diag1 --namespace=containerdiagoperator-system
 NAME    COMMAND   STATUSMESSAGE   RESULT                  DOWNLOAD
 diag1   version   success         Version 0.28.20210830   
 ```
@@ -101,7 +101,7 @@ diag1   version   success         Version 0.28.20210830
 Describe:
 
 ```
-$ kubectl describe ContainerDiagnostic diag1 --namespace=testns1
+$ kubectl describe ContainerDiagnostic diag1 --namespace=containerdiagoperator-system
 [...]
 Spec:
   Command:  version
@@ -114,14 +114,16 @@ Status:
 Events:
   Type    Reason         Age    From                 Message
   ----    ------         ----   ----                 -------
-  Normal  Informational  4m18s  containerdiagnostic  Reconciling ContainerDiagnostic name: diag1, namespace: testns1, command: script, status: uninitialized
-  Normal  Informational  4m18s  containerdiagnostic  Reconciling ContainerDiagnostic name: diag1, namespace: testns1, command: script, status: success
+  Normal  Informational  4m18s  containerdiagnostic  Reconciling ContainerDiagnostic name: diag1, namespace: containerdiagoperator-system, command: script, status: uninitialized
+  Normal  Informational  4m18s  containerdiagnostic  Reconciling ContainerDiagnostic name: diag1, namespace: containerdiagoperator-system, command: script, status: success
 ```
+
+#### Deleting ContainerDiagnostic resources
 
 Delete:
 
 ```
-kubectl delete ContainerDiagnostic diag1 --namespace=testns1
+kubectl delete ContainerDiagnostic diag1 --namespace=containerdiagoperator-system
 ```
 
 ### ContainerDiagnostic
