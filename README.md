@@ -120,8 +120,6 @@ Events:
 
 #### Deleting ContainerDiagnostic resources
 
-Delete:
-
 ```
 kubectl delete ContainerDiagnostic diag1 --namespace=containerdiagoperator-system
 ```
