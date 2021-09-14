@@ -176,3 +176,4 @@ FIELDS:
         * "This package restricts the logging API to just 2 types of logs: info and error."
         * "To write log lines that are more verbose, Logger has a V() method. The higher the V-level of a log line, the less critical it is considered. Log-lines with V-levels that are not enabled (as per the LogSink) will not be written. Level V(0) is the default, and logger.V(0).Info() has the same meaning as logger.Info(). Negative V-levels have the same meaning as V(0)."
 * Add Go module dependency (example): `GO111MODULE=on go get github.com/...`
+* On OpenShift, if runng into https://github.com/operator-framework/operator-sdk/issues/4684 then change `gcr.io/kubebuilder/kube-rbac-proxy:v0.8.0` to `registry.redhat.io/openshift4/ose-kube-rbac-proxy:v4.7` in `manager_auth_proxy_patch.yaml`
