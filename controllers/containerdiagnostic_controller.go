@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.62.20210908"
+const OperatorVersion = "0.63.20210914"
 
 const ResultProcessing = "Processing..."
 
@@ -90,6 +90,7 @@ type ResultsTracker struct {
 //+kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=pods/status,verbs=get
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -200,7 +201,9 @@ func (r *ContainerDiagnosticReconciler) RecordEventInfo(message string, containe
 
 func (r *ContainerDiagnosticReconciler) RecordEventWarning(err error, message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) {
 	logger.Error(err, message)
+
 	// k8s only has normal and warning event types
+	// https://pkg.go.dev/k8s.io/client-go/tools/record#EventRecorder
 	r.EventRecorder.Event(containerDiagnostic, corev1.EventTypeWarning, "Warning", message)
 }
 
