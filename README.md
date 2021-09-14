@@ -6,7 +6,7 @@ The goal of this operator is to automate running diagnostics on a container with
 
 ### Build and Deploy
 
-Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/).
+Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/). The main operator controller code is in [containerdiagnostic_controller.go](https://github.com/kgibm/containerdiagoperator/blob/main/controllers/containerdiagnostic_controller.go).
 
 1. Installation pre-requisities:
     1. [git](https://git-scm.com/downloads)
@@ -65,11 +65,30 @@ make undeploy
 
 ### Create ContainerDiagnostic
 
-#### Test using version command
+#### Example execution
 
-Create example:
+##### YAML
+
+```
+apiVersion: diagnostic.ibm.com/v1
+kind: ContainerDiagnostic
+metadata:
+  name: diag1
+  namespace: containerdiagoperator-system
+spec:
+  command: script
+  arguments: []
+  targetObjects:
+  - kind: Pod
+    name: liberty1-774c5fccc6-f7mjt
+    namespace: testns1
+```
+
+##### JSON
 
 `printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 testns1 script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[]' | kubectl create -f -`
+
+#### Showing ContainerDiagnostic resources
 
 Get:
 
