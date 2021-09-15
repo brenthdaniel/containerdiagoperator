@@ -40,6 +40,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/tools/remotecommand"
+
+	"github.com/google/uuid"
 )
 
 const OperatorVersion = "0.65.20210915"
@@ -280,9 +282,13 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	resultsTracker.visited++
 
-	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer running remote command"))
+	uuid := uuid.New().String()
 
-	containerTmpFilesPrefix := "/tmp/containerdiag/"
+	containerTmpFilesPrefix := "/tmp/containerdiag/" + uuid + "/"
+
+	logger.Info(fmt.Sprintf("RunScriptOnContainer UUID = %s", uuid))
+
+	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer running mkdir remotely..."))
 
 	var stdout, stderr bytes.Buffer
 	err := r.ExecInContainer(pod, container, []string{"mkdir", "-p", containerTmpFilesPrefix}, &stdout, &stderr, nil)
@@ -326,7 +332,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	var tarCommand []string = []string{"-cv", "--dereference", "-f", "/tmp/files.tar", "/usr/bin/top"}
 
 	for _, line := range lines {
-		logger.Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
+		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
 		tarCommand = append(tarCommand, line)
 	}
 
