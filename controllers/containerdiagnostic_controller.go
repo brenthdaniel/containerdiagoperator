@@ -44,7 +44,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const OperatorVersion = "0.68.20210915"
+const OperatorVersion = "0.70.20210915"
 
 const ResultProcessing = "Processing..."
 
@@ -284,42 +284,25 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	uuid := uuid.New().String()
 
+	logger.Info(fmt.Sprintf("RunScriptOnContainer UUID = %s", uuid))
+
 	containerTmpFilesPrefix, ok := r.EnsureDirectoriesOnContainer(ctx, req, containerDiagnostic, logger, pod, container, resultsTracker, uuid)
 
 	if !ok {
-		return
-	}
-
-	logger.Info(fmt.Sprintf("RunScriptOnContainer UUID = %s", uuid))
-
-	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer running mkdir remotely..."))
-
-	var stdout, stderr bytes.Buffer
-	err := r.ExecInContainer(pod, container, []string{"mkdir", "-p", containerTmpFilesPrefix}, &stdout, &stderr, nil)
-
-	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error exec'ing in container: %+v", err), containerDiagnostic, logger)
-
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
 		return
 	}
 
-	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
-
-	output, err := exec.Command("ldd", "/usr/bin/top").Output()
+	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "ldd", "/usr/bin/top")
 	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error executing ldd: %+v", err), containerDiagnostic, logger)
-
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
 		return
 	}
-
-	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd results: %v", output))
 
 	var lines []string
-	scanner := bufio.NewScanner(bytes.NewReader(output))
+	scanner := bufio.NewScanner(bytes.NewReader(outputBytes))
 	for scanner.Scan() {
 		var line string = strings.TrimSpace(scanner.Text())
 		if strings.Contains(line, "=>") {
@@ -340,7 +323,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		tarCommand = append(tarCommand, line)
 	}
 
-	output, err = exec.Command("tar", tarCommand...).Output()
+	output, err := exec.Command("tar", tarCommand...).Output()
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error creating tar: %+v", err), containerDiagnostic, logger)
 
@@ -403,7 +386,27 @@ func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context
 		return "", false
 	}
 
+	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
+
 	return containerTmpFilesPrefix, true
+}
+
+func (r *ContainerDiagnosticReconciler) ExecuteLocalCommand(logger logr.Logger, containerDiagnostic *diagnosticv1.ContainerDiagnostic, command string, arguments ...string) (output []byte, err error) {
+
+	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ExecuteLocalCommand: %v", command))
+
+	outputBytes, err := exec.Command(command, arguments...).CombinedOutput()
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error executing %v: %+v", command, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		return nil, err
+	}
+
+	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ExecuteLocalCommand results: %v", output))
+
+	return outputBytes, nil
 }
 
 func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, container corev1.Container, command []string, stdout *bytes.Buffer, stderr *bytes.Buffer, stdin *bufio.Reader) error {
