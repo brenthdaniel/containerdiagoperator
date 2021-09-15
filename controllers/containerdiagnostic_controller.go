@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const OperatorVersion = "0.64.20210914"
+const OperatorVersion = "0.65.20210915"
 
 const ResultProcessing = "Processing..."
 
