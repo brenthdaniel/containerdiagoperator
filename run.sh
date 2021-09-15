@@ -1,5 +1,7 @@
 #!/bin/sh
-set -e
+
+# Don't use `set -e` because `make undeploy` might fail if the operator doesn't exist yet
+# set -e
 
 TARGETCONTAINER="${TARGETCONTAINER}"
 TARGETNAMESPACE="${TARGETNAMESPACE}"

@@ -60,6 +60,11 @@ spec:
                 - version
                 - script
                 type: string
+              directory:
+                default: /tmp/containerdiag/
+                description: Target directory for diagnostic files. Must end in trailing
+                  slash.
+                type: string
               steps:
                 items:
                   properties:
@@ -135,6 +140,11 @@ spec:
                       type: string
                   type: object
                 type: array
+              useuuid:
+                default: true
+                description: Whether or not to use a unique identifier in the directory
+                  name of each execution.
+                type: boolean
             type: object
           status:
             description: ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic

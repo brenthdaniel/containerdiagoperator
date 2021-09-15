@@ -45,6 +45,17 @@ type ContainerDiagnosticSpec struct {
 
 	// +kubebuilder:validation:Optional
 	Steps []ContainerDiagnosticStep `json:"steps"`
+
+	// Target directory for diagnostic files. Must end in trailing slash.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="/tmp/containerdiag/"
+	Directory string `json:"directory,omitempty"`
+
+	// Whether or not to use a unique identifier in the directory
+	// name of each execution.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	UseUUID bool `json:"useuuid,omitempty"`
 }
 
 // ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
@@ -82,7 +93,7 @@ type ContainerDiagnostic struct {
 }
 
 // ContainerDiagnosticList contains a list of ContainerDiagnostic
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 type ContainerDiagnosticList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

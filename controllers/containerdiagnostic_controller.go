@@ -44,7 +44,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const OperatorVersion = "0.65.20210915"
+const OperatorVersion = "0.68.20210915"
 
 const ResultProcessing = "Processing..."
 
@@ -85,15 +85,15 @@ type ResultsTracker struct {
 	successes int
 }
 
-//+kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics/finalizers,verbs=update
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
-//+kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
-//+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=pods/status,verbs=get
-//+kubebuilder:rbac:groups=core,resources=pods/exec,verbs=create
-//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
+// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=pods/status,verbs=get
+// +kubebuilder:rbac:groups=core,resources=pods/exec,verbs=create
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -284,7 +284,11 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	uuid := uuid.New().String()
 
-	containerTmpFilesPrefix := "/tmp/containerdiag/" + uuid + "/"
+	containerTmpFilesPrefix, ok := r.EnsureDirectoriesOnContainer(ctx, req, containerDiagnostic, logger, pod, container, resultsTracker, uuid)
+
+	if !ok {
+		return
+	}
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer UUID = %s", uuid))
 
@@ -376,6 +380,30 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer tar results: stdout: %v stderr: %v", tarStdout.String(), tarStderr.String()))
 
 	resultsTracker.successes++
+}
+
+func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, resultsTracker *ResultsTracker, uuid string) (response string, ok bool) {
+
+	containerTmpFilesPrefix := containerDiagnostic.Spec.Directory
+
+	if containerDiagnostic.Spec.UseUUID {
+		containerTmpFilesPrefix += uuid + "/"
+	}
+
+	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer running mkdir: %s", containerTmpFilesPrefix))
+
+	var stdout, stderr bytes.Buffer
+	err := r.ExecInContainer(pod, container, []string{"mkdir", "-p", containerTmpFilesPrefix}, &stdout, &stderr, nil)
+
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error executing mkdir in container: %+v", err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		return "", false
+	}
+
+	return containerTmpFilesPrefix, true
 }
 
 func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, container corev1.Container, command []string, stdout *bytes.Buffer, stderr *bytes.Buffer, stdin *bufio.Reader) error {
