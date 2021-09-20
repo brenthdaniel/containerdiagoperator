@@ -23,6 +23,7 @@ import (
 
 type ContainerDiagnosticStep struct {
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=install;execute;package;uninstall
 	Command string `json:"command"`
 
 	// +kubebuilder:validation:Optional

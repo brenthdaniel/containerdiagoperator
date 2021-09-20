@@ -45,7 +45,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.80.20210920"
+const OperatorVersion = "0.84.20210920"
 
 const ResultProcessing = "Processing..."
 
@@ -402,7 +402,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	for _, step := range containerDiagnostic.Spec.Steps {
 		if step.Command == "uninstall" {
 
-			logger.Info(fmt.Sprintf("RunScriptOnContainer running uninstall step"))
+			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'uninstall' step"))
 
 			var stdout, stderr bytes.Buffer
 			err := r.ExecInContainer(pod, container, []string{"rm", "-rf", containerTmpFilesPrefix}, &stdout, &stderr, nil)
@@ -416,7 +416,46 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				return
 			}
 
-			logger.Info(fmt.Sprintf("RunScriptOnContainer finished uninstall step"))
+			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'uninstall' step"))
+		} else if step.Command == "execute" {
+
+			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'execute' step"))
+
+			if step.Arguments == nil || len(step.Arguments) == 0 {
+				r.SetStatus(StatusError, fmt.Sprintf("Run command must have arguments including the binary name"), containerDiagnostic, logger)
+
+				// We don't stop processing other pods/containers, just return. If this is the
+				// only error, status will show as error; othewrise, as mixed
+				Cleanup(logger, localScratchSpaceDirectory)
+				return
+			}
+
+			var args []string = []string{filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), "--inhibit-cache", "--library-path", filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", "bin", step.Arguments[0])}
+
+			for index, arg := range step.Arguments {
+				if index > 0 {
+					args = append(args, arg)
+				}
+			}
+
+			logger.Info(fmt.Sprintf("RunScriptOnContainer Running %v", args))
+
+			var stdout, stderr bytes.Buffer
+			err := r.ExecInContainer(pod, container, args, &stdout, &stderr, nil)
+
+			if err != nil {
+				r.SetStatus(StatusError, fmt.Sprintf("Error running 'execute' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+
+				// We don't stop processing other pods/containers, just return. If this is the
+				// only error, status will show as error; othewrise, as mixed
+				Cleanup(logger, localScratchSpaceDirectory)
+				return
+			}
+
+			logger.Info(fmt.Sprintf("RunScriptOnContainer stdout:\n%s\n\nstderr:\n%s\n", stdout.String(), stderr.String()))
+
+			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'execute' step"))
+
 		}
 	}
 

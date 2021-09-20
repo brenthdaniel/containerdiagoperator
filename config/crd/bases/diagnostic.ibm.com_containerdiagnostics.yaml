@@ -75,6 +75,11 @@ spec:
                         type: string
                       type: array
                     command:
+                      enum:
+                      - install
+                      - execute
+                      - package
+                      - uninstall
                       type: string
                   required:
                   - command
