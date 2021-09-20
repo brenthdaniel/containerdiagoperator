@@ -137,11 +137,11 @@ DESCRIPTION:
      ContainerDiagnostic is the Schema for the containerdiagnostics API
 
 FIELDS:
-[..]
+[...]
    spec	<Object>
      ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
 
-   status	<map[string]>
+   status	<Object>
      ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
 ```
 
