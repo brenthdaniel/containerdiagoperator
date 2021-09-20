@@ -129,7 +129,7 @@ kubectl delete ContainerDiagnostic diag1 --namespace=containerdiagoperator-syste
 Describe the API resource:
 
 ```
-$ kubectl explain ContainerDiagnostic     
+$ kubectl explain ContainerDiagnostic
 KIND:     ContainerDiagnostic
 VERSION:  diagnostic.ibm.com/v1
 
@@ -157,9 +157,25 @@ RESOURCE: spec <Object>
 DESCRIPTION:
      ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
 
+DESCRIPTION:
+     ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
+
 FIELDS:
+   arguments	<[]string>
+
    command	<string>
-     Command is one of: version
+     Command is one of: version, script
+
+   directory	<string>
+     Target directory for diagnostic files. Must end in trailing slash.
+
+   steps	<[]Object>
+
+   targetObjects	<[]Object>
+
+   useuuid	<boolean>
+     Whether or not to use a unique identifier in the directory name of each
+     execution.
 ```
 
 ### Notes
