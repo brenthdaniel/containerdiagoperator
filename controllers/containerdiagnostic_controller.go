@@ -45,7 +45,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.78.20210920"
+const OperatorVersion = "0.79.20210920"
 
 const ResultProcessing = "Processing..."
 
@@ -314,33 +314,45 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		return
 	}
 
-	lines, ok := r.FindSharedLibraries(logger, containerDiagnostic, "/usr/bin/top")
-	if !ok {
-		// The error will have been logged within the function.
-		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
-		Cleanup(logger, localScratchSpaceDirectory)
-		return
-	}
-
-	logger.Info(fmt.Sprintf("RunScriptOnContainer creating local tar..."))
-
+	// Now loop through the steps to figure out all the files we'll need to upload
 	localTarFile := filepath.Join(localScratchSpaceDirectory, "files.tar")
 
 	filesToTar := make(map[string]bool)
 
 	var tarArguments []string = []string{"-cv", "--dereference", "-f", localTarFile}
 
-	filesToTar["/usr/bin/top"] = true
+	for _, step := range containerDiagnostic.Spec.Steps {
+		if step.Command == "install" {
+			for _, command := range step.Arguments {
 
-	for _, line := range lines {
-		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
-		filesToTar[line] = true
+				fullCommand := "/usr/bin/" + command
+
+				logger.Info(fmt.Sprintf("RunScriptOnContainer Processing install command: %s", fullCommand))
+
+				filesToTar[fullCommand] = true
+
+				lines, ok := r.FindSharedLibraries(logger, containerDiagnostic, fullCommand)
+				if !ok {
+					// The error will have been logged within the function.
+					// We don't stop processing other pods/containers, just return. If this is the
+					// only error, status will show as error; othewrise, as mixed
+					Cleanup(logger, localScratchSpaceDirectory)
+					return
+				}
+
+				for _, line := range lines {
+					logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
+					filesToTar[line] = true
+				}
+			}
+		}
 	}
 
 	for key := range filesToTar {
 		tarArguments = append(tarArguments, key)
 	}
+
+	logger.Info(fmt.Sprintf("RunScriptOnContainer creating local tar..."))
 
 	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "tar", tarArguments...)
 	if err != nil {
