@@ -44,7 +44,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const OperatorVersion = "0.71.20210920"
+const OperatorVersion = "0.72.20210920"
 
 const ResultProcessing = "Processing..."
 
@@ -287,31 +287,17 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	logger.Info(fmt.Sprintf("RunScriptOnContainer UUID = %s", uuid))
 
 	containerTmpFilesPrefix, ok := r.EnsureDirectoriesOnContainer(ctx, req, containerDiagnostic, logger, pod, container, resultsTracker, uuid)
-
 	if !ok {
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
 		return
 	}
 
-	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "ldd", "/usr/bin/top")
-	if err != nil {
+	lines, ok := r.FindSharedLibraries(logger, containerDiagnostic, "/usr/bin/top")
+	if !ok {
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
 		return
-	}
-
-	var lines []string
-	scanner := bufio.NewScanner(bytes.NewReader(outputBytes))
-	for scanner.Scan() {
-		var line string = strings.TrimSpace(scanner.Text())
-		if strings.Contains(line, "=>") {
-			var pieces []string = strings.Split(line, " ")
-			lines = append(lines, pieces[2])
-		} else if strings.Contains(line, "ld-linux") {
-			var pieces []string = strings.Split(line, " ")
-			lines = append(lines, pieces[0])
-		}
 	}
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar..."))
@@ -407,6 +393,30 @@ func (r *ContainerDiagnosticReconciler) ExecuteLocalCommand(logger logr.Logger, 
 	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ExecuteLocalCommand results: %v", output))
 
 	return outputBytes, nil
+}
+
+func (r *ContainerDiagnosticReconciler) FindSharedLibraries(logger logr.Logger, containerDiagnostic *diagnosticv1.ContainerDiagnostic, command string) ([]string, bool) {
+	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "ldd", command)
+	if err != nil {
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		return nil, false
+	}
+
+	var lines []string
+	scanner := bufio.NewScanner(bytes.NewReader(outputBytes))
+	for scanner.Scan() {
+		var line string = strings.TrimSpace(scanner.Text())
+		if strings.Contains(line, "=>") {
+			var pieces []string = strings.Split(line, " ")
+			lines = append(lines, pieces[2])
+		} else if strings.Contains(line, "ld-linux") {
+			var pieces []string = strings.Split(line, " ")
+			lines = append(lines, pieces[0])
+		}
+	}
+
+	return lines, true
 }
 
 func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, container corev1.Container, command []string, stdout *bytes.Buffer, stderr *bytes.Buffer, stdin *bufio.Reader) error {
