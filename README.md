@@ -96,11 +96,12 @@ spec:
     - dmesg
     - gzip
     - rm
+  - command: uninstall
 ```
 
 ##### JSON
 
-`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top", "ps", "netstat", "df", "date", "echo", "vmstat", "sleep", "dmesg", "gzip", "rm"]}]' | kubectl create -f -`
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top", "ps", "netstat", "df", "date", "echo", "vmstat", "sleep", "dmesg", "gzip", "rm"]}, {"command": "uninstall"}]' | kubectl create -f -`
 
 #### Showing ContainerDiagnostic resources
 

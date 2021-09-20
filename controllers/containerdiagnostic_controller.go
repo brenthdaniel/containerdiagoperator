@@ -45,7 +45,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.79.20210920"
+const OperatorVersion = "0.80.20210920"
 
 const ResultProcessing = "Processing..."
 
@@ -348,52 +348,77 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		}
 	}
 
-	for key := range filesToTar {
-		tarArguments = append(tarArguments, key)
+	// Upload any files that are needed
+	if len(filesToTar) > 0 {
+		for key := range filesToTar {
+			tarArguments = append(tarArguments, key)
+		}
+
+		logger.Info(fmt.Sprintf("RunScriptOnContainer creating local tar..."))
+
+		outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "tar", tarArguments...)
+		if err != nil {
+			// The error will have been logged within the function.
+			// We don't stop processing other pods/containers, just return. If this is the
+			// only error, status will show as error; othewrise, as mixed
+			Cleanup(logger, localScratchSpaceDirectory)
+			return
+		}
+
+		var outputStr string = string(outputBytes[:])
+		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer local tar output: %v", outputStr))
+
+		file, err := os.Open(localTarFile)
+		if err != nil {
+			r.SetStatus(StatusError, fmt.Sprintf("Error reading tar file %s error: %+v", localTarFile, err), containerDiagnostic, logger)
+
+			// We don't stop processing other pods/containers, just return. If this is the
+			// only error, status will show as error; othewrise, as mixed
+			Cleanup(logger, localScratchSpaceDirectory)
+			return
+		}
+
+		fileReader := bufio.NewReader(file)
+		logger.Info(fmt.Sprintf("RunScriptOnContainer local tar file binary size: %d", fileReader.Size()))
+
+		var tarStdout, tarStderr bytes.Buffer
+		err = r.ExecInContainer(pod, container, []string{"tar", "-xmf", "-", "-C", containerTmpFilesPrefix}, &tarStdout, &tarStderr, fileReader)
+
+		file.Close()
+
+		if err != nil {
+			r.SetStatus(StatusError, fmt.Sprintf("Error uploading tar file to pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+
+			// We don't stop processing other pods/containers, just return. If this is the
+			// only error, status will show as error; othewrise, as mixed
+			Cleanup(logger, localScratchSpaceDirectory)
+			return
+		}
+
+		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer tar results: stdout: %v stderr: %v", tarStdout.String(), tarStderr.String()))
 	}
 
-	logger.Info(fmt.Sprintf("RunScriptOnContainer creating local tar..."))
+	// Now finally go through all the steps
+	for _, step := range containerDiagnostic.Spec.Steps {
+		if step.Command == "uninstall" {
 
-	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "tar", tarArguments...)
-	if err != nil {
-		// The error will have been logged within the function.
-		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
-		Cleanup(logger, localScratchSpaceDirectory)
-		return
+			logger.Info(fmt.Sprintf("RunScriptOnContainer running uninstall step"))
+
+			var stdout, stderr bytes.Buffer
+			err := r.ExecInContainer(pod, container, []string{"rm", "-rf", containerTmpFilesPrefix}, &stdout, &stderr, nil)
+
+			if err != nil {
+				r.SetStatus(StatusError, fmt.Sprintf("Error running uninstall step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+
+				// We don't stop processing other pods/containers, just return. If this is the
+				// only error, status will show as error; othewrise, as mixed
+				Cleanup(logger, localScratchSpaceDirectory)
+				return
+			}
+
+			logger.Info(fmt.Sprintf("RunScriptOnContainer finished uninstall step"))
+		}
 	}
-
-	var outputStr string = string(outputBytes[:])
-	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer local tar output: %v", outputStr))
-
-	file, err := os.Open(localTarFile)
-	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error reading tar file %s error: %+v", localTarFile, err), containerDiagnostic, logger)
-
-		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
-		Cleanup(logger, localScratchSpaceDirectory)
-		return
-	}
-
-	fileReader := bufio.NewReader(file)
-	logger.Info(fmt.Sprintf("RunScriptOnContainer local tar file binary size: %d", fileReader.Size()))
-
-	var tarStdout, tarStderr bytes.Buffer
-	err = r.ExecInContainer(pod, container, []string{"tar", "-xmf", "-", "-C", containerTmpFilesPrefix}, &tarStdout, &tarStderr, fileReader)
-
-	file.Close()
-
-	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error uploading tar file to pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
-
-		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
-		Cleanup(logger, localScratchSpaceDirectory)
-		return
-	}
-
-	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer tar results: stdout: %v stderr: %v", tarStdout.String(), tarStderr.String()))
 
 	resultsTracker.successes++
 
