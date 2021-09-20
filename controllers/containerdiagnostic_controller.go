@@ -45,7 +45,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.77.20210920"
+const OperatorVersion = "0.78.20210920"
 
 const ResultProcessing = "Processing..."
 
@@ -221,6 +221,11 @@ func (r *ContainerDiagnosticReconciler) CommandVersion(ctx context.Context, req 
 
 func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
 	logger.Info("Processing command: script")
+
+	if len(containerDiagnostic.Spec.Steps) == 0 {
+		r.SetStatus(StatusError, fmt.Sprintf("You must specify an array of steps to perform for the script command"), containerDiagnostic, logger)
+		return ctrl.Result{}, nil
+	}
 
 	resultsTracker := ResultsTracker{}
 
