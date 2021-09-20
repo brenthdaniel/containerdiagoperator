@@ -430,6 +430,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				return
 			}
 
+			// See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
 			var args []string = []string{filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), "--inhibit-cache", "--library-path", filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", "bin", step.Arguments[0])}
 
 			for index, arg := range step.Arguments {
