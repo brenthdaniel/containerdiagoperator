@@ -42,9 +42,10 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/google/uuid"
+	"path/filepath"
 )
 
-const OperatorVersion = "0.72.20210920"
+const OperatorVersion = "0.74.20210920"
 
 const ResultProcessing = "Processing..."
 
@@ -286,10 +287,24 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer UUID = %s", uuid))
 
+	// First create a local scratchspace
+	localdir := filepath.Join("/tmp/", uuid)
+	err := os.MkdirAll(localdir, os.ModePerm)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not create local scratchspace in %s: %+v", localdir, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		return
+	}
+
+	logger.Info(fmt.Sprintf("RunScriptOnContainer Created local scratch space: %s", localdir))
+
 	containerTmpFilesPrefix, ok := r.EnsureDirectoriesOnContainer(ctx, req, containerDiagnostic, logger, pod, container, resultsTracker, uuid)
 	if !ok {
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localdir)
 		return
 	}
 
@@ -297,12 +312,15 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	if !ok {
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localdir)
 		return
 	}
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar..."))
 
-	var tarCommand []string = []string{"-cv", "--dereference", "-f", "/tmp/files.tar", "/usr/bin/top"}
+	tarfile := filepath.Join(localdir, "files.tar")
+
+	var tarCommand []string = []string{"-cv", "--dereference", "-f", tarfile, "/usr/bin/top"}
 
 	for _, line := range lines {
 		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
@@ -315,18 +333,20 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localdir)
 		return
 	}
 
 	var outputStr string = string(output[:])
 	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar: %v", outputStr))
 
-	file, err := os.Open("/tmp/files.tar")
+	file, err := os.Open(tarfile)
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error reading binary from operator image: %+v", err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localdir)
 		return
 	}
 
@@ -343,12 +363,22 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localdir)
 		return
 	}
 
 	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer tar results: stdout: %v stderr: %v", tarStdout.String(), tarStderr.String()))
 
 	resultsTracker.successes++
+
+	Cleanup(logger, localdir)
+}
+
+func Cleanup(logger logr.Logger, localDirectory string) {
+	err := os.RemoveAll(localDirectory)
+	if err != nil {
+		logger.Info(fmt.Sprintf("Could not cleanup %s: %+v", localDirectory, err))
+	}
 }
 
 func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, resultsTracker *ResultsTracker, uuid string) (response string, ok bool) {
