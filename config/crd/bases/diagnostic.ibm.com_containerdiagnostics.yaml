@@ -51,6 +51,7 @@ spec:
             description: ContainerDiagnosticSpec defines the desired state of ContainerDiagnostic
             properties:
               arguments:
+                description: Optional. Arguments for the specified Command.
                 items:
                   type: string
                 type: array
@@ -62,10 +63,11 @@ spec:
                 type: string
               directory:
                 default: /tmp/containerdiag/
-                description: Target directory for diagnostic files. Must end in trailing
-                  slash.
+                description: Optional. Target directory for diagnostic files. Must
+                  end in trailing slash. Defaults to /tmp/containerdiag/.
                 type: string
               steps:
+                description: A list of steps to perform for the specified Command.
                 items:
                   properties:
                     arguments:
@@ -79,6 +81,7 @@ spec:
                   type: object
                 type: array
               targetObjects:
+                description: Optional. A list of ObjectReferences. See https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-reference/
                 items:
                   description: 'ObjectReference contains enough information to let
                     you inspect or modify the referred object. --- New uses of this
@@ -142,8 +145,8 @@ spec:
                 type: array
               useuuid:
                 default: true
-                description: Whether or not to use a unique identifier in the directory
-                  name of each execution.
+                description: Optional. Whether or not to use a unique identifier in
+                  the directory name of each execution. Defaults to true.
                 type: boolean
             type: object
           status:

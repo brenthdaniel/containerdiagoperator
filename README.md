@@ -162,20 +162,25 @@ DESCRIPTION:
 
 FIELDS:
    arguments	<[]string>
+     Optional. Arguments for the specified Command.
 
    command	<string>
      Command is one of: version, script
 
    directory	<string>
-     Target directory for diagnostic files. Must end in trailing slash.
+     Optional. Target directory for diagnostic files. Must end in trailing
+     slash. Defaults to /tmp/containerdiag/.
 
    steps	<[]Object>
+     A list of steps to perform for the specified Command.
 
    targetObjects	<[]Object>
+     Optional. A list of ObjectReferences. See
+     https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-reference/
 
    useuuid	<boolean>
-     Whether or not to use a unique identifier in the directory name of each
-     execution.
+     Optional. Whether or not to use a unique identifier in the directory name
+     of each execution. Defaults to true.
 ```
 
 ### Notes

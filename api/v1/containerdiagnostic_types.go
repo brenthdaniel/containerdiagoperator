@@ -37,22 +37,27 @@ type ContainerDiagnosticSpec struct {
 	// +kubebuilder:validation:Enum=version;script
 	Command string `json:"command,omitempty"`
 
+	// Optional. Arguments for the specified Command.
 	// +kubebuilder:validation:Optional
 	Arguments []string `json:"arguments"`
 
+	// Optional. A list of ObjectReferences.
+	// See https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-reference/
 	// +kubebuilder:validation:Optional
 	TargetObjects []corev1.ObjectReference `json:"targetObjects"`
 
+	// A list of steps to perform for the specified Command.
 	// +kubebuilder:validation:Optional
 	Steps []ContainerDiagnosticStep `json:"steps"`
 
-	// Target directory for diagnostic files. Must end in trailing slash.
+	// Optional. Target directory for diagnostic files. Must end in trailing slash.
+	// Defaults to /tmp/containerdiag/.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="/tmp/containerdiag/"
 	Directory string `json:"directory,omitempty"`
 
-	// Whether or not to use a unique identifier in the directory
-	// name of each execution.
+	// Optional. Whether or not to use a unique identifier in the directory
+	// name of each execution. Defaults to true.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=true
 	UseUUID bool `json:"useuuid,omitempty"`

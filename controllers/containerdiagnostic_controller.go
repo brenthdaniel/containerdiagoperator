@@ -44,7 +44,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const OperatorVersion = "0.70.20210915"
+const OperatorVersion = "0.71.20210920"
 
 const ResultProcessing = "Processing..."
 
