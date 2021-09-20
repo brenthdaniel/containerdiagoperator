@@ -45,7 +45,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.74.20210920"
+const OperatorVersion = "0.77.20210920"
 
 const ResultProcessing = "Processing..."
 
@@ -240,7 +240,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 				r.RunScriptOnPod(ctx, req, containerDiagnostic, logger, pod, &resultsTracker)
 			} else {
 				if errors.IsNotFound(err) {
-					r.SetStatus(StatusError, fmt.Sprintf("Pod not found: %+v", targetObject), containerDiagnostic, logger)
+					r.SetStatus(StatusError, fmt.Sprintf("Pod not found: name: %s namespace: %s", targetObject.Name, targetObject.Namespace), containerDiagnostic, logger)
 				} else {
 					logger.Error(err, "Failed to get targetObject")
 					return ctrl.Result{}, err
@@ -288,70 +288,79 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	logger.Info(fmt.Sprintf("RunScriptOnContainer UUID = %s", uuid))
 
 	// First create a local scratchspace
-	localdir := filepath.Join("/tmp/", uuid)
-	err := os.MkdirAll(localdir, os.ModePerm)
+	localScratchSpaceDirectory := filepath.Join("/tmp/", uuid)
+	err := os.MkdirAll(localScratchSpaceDirectory, os.ModePerm)
 	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Could not create local scratchspace in %s: %+v", localdir, err), containerDiagnostic, logger)
+		r.SetStatus(StatusError, fmt.Sprintf("Could not create local scratchspace in %s: %+v", localScratchSpaceDirectory, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
 		return
 	}
 
-	logger.Info(fmt.Sprintf("RunScriptOnContainer Created local scratch space: %s", localdir))
+	logger.Info(fmt.Sprintf("RunScriptOnContainer Created local scratch space: %s", localScratchSpaceDirectory))
 
 	containerTmpFilesPrefix, ok := r.EnsureDirectoriesOnContainer(ctx, req, containerDiagnostic, logger, pod, container, resultsTracker, uuid)
 	if !ok {
+		// The error will have been logged within the function.
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
-		Cleanup(logger, localdir)
+		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
 
 	lines, ok := r.FindSharedLibraries(logger, containerDiagnostic, "/usr/bin/top")
 	if !ok {
+		// The error will have been logged within the function.
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
-		Cleanup(logger, localdir)
+		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
 
-	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar..."))
+	logger.Info(fmt.Sprintf("RunScriptOnContainer creating local tar..."))
 
-	tarfile := filepath.Join(localdir, "files.tar")
+	localTarFile := filepath.Join(localScratchSpaceDirectory, "files.tar")
 
-	var tarCommand []string = []string{"-cv", "--dereference", "-f", tarfile, "/usr/bin/top"}
+	filesToTar := make(map[string]bool)
+
+	var tarArguments []string = []string{"-cv", "--dereference", "-f", localTarFile}
+
+	filesToTar["/usr/bin/top"] = true
 
 	for _, line := range lines {
 		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
-		tarCommand = append(tarCommand, line)
+		filesToTar[line] = true
 	}
 
-	output, err := exec.Command("tar", tarCommand...).Output()
-	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error creating tar: %+v", err), containerDiagnostic, logger)
+	for key := range filesToTar {
+		tarArguments = append(tarArguments, key)
+	}
 
+	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "tar", tarArguments...)
+	if err != nil {
+		// The error will have been logged within the function.
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
-		Cleanup(logger, localdir)
+		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
 
-	var outputStr string = string(output[:])
-	logger.Info(fmt.Sprintf("RunScriptOnContainer creating tar: %v", outputStr))
+	var outputStr string = string(outputBytes[:])
+	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer local tar output: %v", outputStr))
 
-	file, err := os.Open(tarfile)
+	file, err := os.Open(localTarFile)
 	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error reading binary from operator image: %+v", err), containerDiagnostic, logger)
+		r.SetStatus(StatusError, fmt.Sprintf("Error reading tar file %s error: %+v", localTarFile, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
-		Cleanup(logger, localdir)
+		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
 
 	fileReader := bufio.NewReader(file)
-	logger.Info(fmt.Sprintf("RunScriptOnContainer binary size: %d", fileReader.Size()))
+	logger.Info(fmt.Sprintf("RunScriptOnContainer local tar file binary size: %d", fileReader.Size()))
 
 	var tarStdout, tarStderr bytes.Buffer
 	err = r.ExecInContainer(pod, container, []string{"tar", "-xmf", "-", "-C", containerTmpFilesPrefix}, &tarStdout, &tarStderr, fileReader)
@@ -359,11 +368,11 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	file.Close()
 
 	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error tarring: %+v", err), containerDiagnostic, logger)
+		r.SetStatus(StatusError, fmt.Sprintf("Error uploading tar file to pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
-		Cleanup(logger, localdir)
+		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
 
@@ -371,13 +380,13 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	resultsTracker.successes++
 
-	Cleanup(logger, localdir)
+	Cleanup(logger, localScratchSpaceDirectory)
 }
 
-func Cleanup(logger logr.Logger, localDirectory string) {
-	err := os.RemoveAll(localDirectory)
+func Cleanup(logger logr.Logger, localScratchSpaceDirectory string) {
+	err := os.RemoveAll(localScratchSpaceDirectory)
 	if err != nil {
-		logger.Info(fmt.Sprintf("Could not cleanup %s: %+v", localDirectory, err))
+		logger.Info(fmt.Sprintf("Could not cleanup %s: %+v", localScratchSpaceDirectory, err))
 	}
 }
 
