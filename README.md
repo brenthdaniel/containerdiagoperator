@@ -12,7 +12,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
     1. [git](https://git-scm.com/downloads)
     1. [go](https://golang.org/dl/)
     1. [operator-sdk](https://sdk.operatorframework.io/docs/installation/)
-1. Update the version in `controllers/containerdiagnostic_controller.go`. For example:
+1. Update the version in `controllers/containerdiagnostic_controller.go`. For example (e.g. set `YYYYMMDD` to the current date, and increment `X` for each build):
    ```
    const OperatorVersion = "0.X.YYYYMMDD"
    ```
@@ -85,29 +85,16 @@ spec:
   steps:
   - command: install
     arguments:
-    - top
-    - ps
-    - netstat
-    - df
-    - date
-    - echo
-    - vmstat
-    - sleep
-    - dmesg
-    - gzip
-    - rm
+    - top ps netstat df date echo vmstat sleep dmesg gzip rm
   - command: execute
     arguments:
-    - vmstat
-    - -tw
-    - 1
-    - 2
+    - vmstat -tw 1 2
   - command: uninstall
 ```
 
 ##### JSON
 
-`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top", "ps", "netstat", "df", "date", "echo", "vmstat", "sleep", "dmesg", "gzip", "rm"]}, {"command": "execute", "arguments": ["vmstat", "-tw", "1", "2"]}, {"command": "uninstall"}]' | kubectl create -f -`
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top", "ps", "netstat", "df", "date", "echo", "vmstat", "sleep", "dmesg", "gzip", "rm"]}, {"command": "execute", "arguments": ["vmstat -tw 1 2"]}, {"command": "uninstall"}]' | kubectl create -f -`
 
 #### Showing ContainerDiagnostic resources
 

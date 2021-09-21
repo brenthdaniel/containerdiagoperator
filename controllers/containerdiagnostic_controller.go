@@ -45,7 +45,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.84.20210920"
+const OperatorVersion = "0.102.20210921"
 
 const ResultProcessing = "Processing..."
 
@@ -174,7 +174,7 @@ func CurrentTimeAsString() string {
 
 func (r *ContainerDiagnosticReconciler) ProcessResult(result ctrl.Result, err error, ctx context.Context, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
 	if err == nil {
-		r.RecordEventInfo(fmt.Sprintf("Finished reconciling successfully @ %s", CurrentTimeAsString()), containerDiagnostic, logger)
+		r.RecordEventInfo(fmt.Sprintf("Finished reconciling @ %s", CurrentTimeAsString()), containerDiagnostic, logger)
 	} else {
 		r.SetStatus(StatusError, fmt.Sprintf("Error: %s", err.Error()), containerDiagnostic, logger)
 		r.RecordEventWarning(err, fmt.Sprintf("Finished reconciling with error %v @ %s", err, CurrentTimeAsString()), containerDiagnostic, logger)
@@ -307,7 +307,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	containerTmpFilesPrefix, ok := r.EnsureDirectoriesOnContainer(ctx, req, containerDiagnostic, logger, pod, container, resultsTracker, uuid)
 	if !ok {
-		// The error will have been logged within the function.
+		// The error will have been logged within the above function.
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
@@ -319,32 +319,106 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	filesToTar := make(map[string]bool)
 
-	var tarArguments []string = []string{"-cv", "--dereference", "-f", localTarFile}
+	// "--dereference" not needed because we tar up the symlink targets too
+	var tarArguments []string = []string{"-cv", "-f", localTarFile}
 
+	// First add in some basic commands that we'll always need
+	for _, command := range []string{"/usr/bin/date", "/usr/bin/echo", "/usr/bin/zip"} {
+		ok := r.ProcessInstallCommand(command, filesToTar, containerDiagnostic, logger)
+		if !ok {
+			// The error will have been logged within the above function.
+			// We don't stop processing other pods/containers, just return. If this is the
+			// only error, status will show as error; othewrise, as mixed
+			Cleanup(logger, localScratchSpaceDirectory)
+			return
+		}
+	}
+
+	// Now add in any commands that the user has specified
 	for _, step := range containerDiagnostic.Spec.Steps {
 		if step.Command == "install" {
-			for _, command := range step.Arguments {
-
-				fullCommand := "/usr/bin/" + command
-
-				logger.Info(fmt.Sprintf("RunScriptOnContainer Processing install command: %s", fullCommand))
-
-				filesToTar[fullCommand] = true
-
-				lines, ok := r.FindSharedLibraries(logger, containerDiagnostic, fullCommand)
-				if !ok {
-					// The error will have been logged within the function.
-					// We don't stop processing other pods/containers, just return. If this is the
-					// only error, status will show as error; othewrise, as mixed
-					Cleanup(logger, localScratchSpaceDirectory)
-					return
-				}
-
-				for _, line := range lines {
-					logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
-					filesToTar[line] = true
+			for _, commandLine := range step.Arguments {
+				for _, command := range strings.Split(commandLine, " ") {
+					ok := r.ProcessInstallCommand("/usr/bin/"+command, filesToTar, containerDiagnostic, logger)
+					if !ok {
+						// The error will have been logged within the above function.
+						// We don't stop processing other pods/containers, just return. If this is the
+						// only error, status will show as error; othewrise, as mixed
+						Cleanup(logger, localScratchSpaceDirectory)
+						return
+					}
 				}
 			}
+		}
+	}
+
+	// Create the execute script(s)
+
+	for stepIndex, step := range containerDiagnostic.Spec.Steps {
+		if step.Command == "execute" {
+
+			if step.Arguments == nil || len(step.Arguments) == 0 {
+				r.SetStatus(StatusError, fmt.Sprintf("Run command must have arguments including the binary name"), containerDiagnostic, logger)
+
+				// We don't stop processing other pods/containers, just return. If this is the
+				// only error, status will show as error; othewrise, as mixed
+				Cleanup(logger, localScratchSpaceDirectory)
+				return
+			}
+
+			remoteOutputFile := filepath.Join(containerTmpFilesPrefix, fmt.Sprintf("containerdiag_%s_%d.txt", time.Now().Format("20060102_150405"), (stepIndex+1)))
+
+			localExecuteScript := filepath.Join(localScratchSpaceDirectory, fmt.Sprintf("execute_%d.sh", (stepIndex+1)))
+
+			localExecuteFile, err := os.OpenFile(localExecuteScript, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+
+			if err != nil {
+				r.SetStatus(StatusError, fmt.Sprintf("Error writing local execute.sh file %s error: %+v", localExecuteScript, err), containerDiagnostic, logger)
+
+				// We don't stop processing other pods/containers, just return. If this is the
+				// only error, status will show as error; othewrise, as mixed
+				Cleanup(logger, localScratchSpaceDirectory)
+				return
+			}
+
+			localExecuteFileWriter := bufio.NewWriter(localExecuteFile)
+			localExecuteFileWriter.WriteString("#!/bin/sh\n")
+			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"Writing output to %s\"", remoteOutputFile), false, remoteOutputFile)
+			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"containerdiag: Started execution\"", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
+
+			command := step.Arguments[0]
+			arguments := ""
+
+			spaceIndex := strings.Index(command, " ")
+			if spaceIndex != -1 {
+				arguments = command[spaceIndex+1:]
+				command = command[:spaceIndex]
+			}
+
+			for index, arg := range step.Arguments {
+				if index > 0 {
+					if len(arguments) > 0 {
+						arguments += " "
+					}
+					arguments += arg
+				}
+			}
+
+			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, command, arguments, true, remoteOutputFile)
+
+			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"containerdiag: Finished execution\"", true, remoteOutputFile)
+
+			localExecuteFileWriter.Flush()
+			localExecuteFile.Close()
+
+			os.Chmod(localExecuteScript, os.ModePerm)
+
+			// Now that the local file is written, add it to the files to transfer over:
+			filesToTar[localExecuteScript] = true
 		}
 	}
 
@@ -358,7 +432,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 		outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "tar", tarArguments...)
 		if err != nil {
-			// The error will have been logged within the function.
+			// The error will have been logged within the above function.
 			// We don't stop processing other pods/containers, just return. If this is the
 			// only error, status will show as error; othewrise, as mixed
 			Cleanup(logger, localScratchSpaceDirectory)
@@ -399,7 +473,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	}
 
 	// Now finally go through all the steps
-	for _, step := range containerDiagnostic.Spec.Steps {
+	for stepIndex, step := range containerDiagnostic.Spec.Steps {
 		if step.Command == "uninstall" {
 
 			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'uninstall' step"))
@@ -421,28 +495,12 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'execute' step"))
 
-			if step.Arguments == nil || len(step.Arguments) == 0 {
-				r.SetStatus(StatusError, fmt.Sprintf("Run command must have arguments including the binary name"), containerDiagnostic, logger)
+			remoteExecutionScript := filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, fmt.Sprintf("execute_%d.sh", (stepIndex+1)))
 
-				// We don't stop processing other pods/containers, just return. If this is the
-				// only error, status will show as error; othewrise, as mixed
-				Cleanup(logger, localScratchSpaceDirectory)
-				return
-			}
-
-			// See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
-			var args []string = []string{filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), "--inhibit-cache", "--library-path", filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", "bin", step.Arguments[0])}
-
-			for index, arg := range step.Arguments {
-				if index > 0 {
-					args = append(args, arg)
-				}
-			}
-
-			logger.Info(fmt.Sprintf("RunScriptOnContainer Running %v", args))
+			logger.Info(fmt.Sprintf("RunScriptOnContainer Running %v", remoteExecutionScript))
 
 			var stdout, stderr bytes.Buffer
-			err := r.ExecInContainer(pod, container, args, &stdout, &stderr, nil)
+			err := r.ExecInContainer(pod, container, []string{remoteExecutionScript}, &stdout, &stderr, nil)
 
 			if err != nil {
 				r.SetStatus(StatusError, fmt.Sprintf("Error running 'execute' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -453,16 +511,93 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				return
 			}
 
-			logger.Info(fmt.Sprintf("RunScriptOnContainer stdout:\n%s\n\nstderr:\n%s\n", stdout.String(), stderr.String()))
+			stdoutStr := stdout.String()
+			stderrStr := stderr.String()
+			if len(stderrStr) == 0 {
+				logger.Info(fmt.Sprintf("RunScriptOnContainer stdout:\n%s\n", stdoutStr))
+			} else {
+				logger.Info(fmt.Sprintf("RunScriptOnContainer stdout:\n%s\n\nstderr:\n%s\n", stdoutStr, stderrStr))
+			}
 
 			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'execute' step"))
-
 		}
 	}
 
 	resultsTracker.successes++
 
 	Cleanup(logger, localScratchSpaceDirectory)
+}
+
+func WriteExecutionLine(fileWriter *bufio.Writer, containerTmpFilesPrefix string, command string, arguments string, redirectOutput bool, outputFile string) {
+	// See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
+	var redirectStr string = ""
+	if redirectOutput {
+		redirectStr = fmt.Sprintf(">> %s 2>&1", outputFile)
+	}
+	fileWriter.WriteString(fmt.Sprintf("%s --inhibit-cache --library-path %s %s %s %s\n", filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", "bin", command), arguments, redirectStr))
+}
+
+func (r *ContainerDiagnosticReconciler) ProcessInstallCommand(fullCommand string, filesToTar map[string]bool, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) bool {
+
+	fullCommand = filepath.Clean(fullCommand)
+
+	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer Processing install command: %s", fullCommand))
+
+	filesToTar[fullCommand] = true
+
+	lines, ok := r.FindSharedLibraries(logger, containerDiagnostic, fullCommand)
+	if !ok {
+		// The error will have been logged within the above function.
+		return false
+	}
+
+	for _, line := range lines {
+		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
+		filesToTar[line] = true
+
+		// Follow any symlinks and add those
+		var last string = line
+		var count int = 0
+
+		for count < 10 {
+			logger.V(2).Info(fmt.Sprintf("ProcessInstallCommand checking for symlinks: %s", last))
+			fileInfo, err := os.Lstat(last)
+			if err == nil {
+				if fileInfo.Mode()&os.ModeSymlink != 0 {
+					checkLink, err := os.Readlink(last)
+					logger.V(2).Info(fmt.Sprintf("ProcessInstallCommand found symlink: %s", checkLink))
+					if err == nil {
+						if checkLink != last {
+
+							if !filepath.IsAbs(checkLink) {
+								checkLink = filepath.Clean(filepath.Join(filepath.Dir(last), checkLink))
+							} else {
+								checkLink = filepath.Clean(checkLink)
+							}
+
+							logger.V(2).Info(fmt.Sprintf("ProcessInstallCommand after cleaning: %s", checkLink))
+
+							filesToTar[checkLink] = true
+							last = checkLink
+						} else {
+							break
+						}
+					} else {
+						break
+					}
+				} else {
+					break
+				}
+			} else {
+				break
+			}
+
+			// Avoid an infinite loop
+			count++
+		}
+	}
+
+	return true
 }
 
 func Cleanup(logger logr.Logger, localScratchSpaceDirectory string) {
@@ -504,7 +639,7 @@ func (r *ContainerDiagnosticReconciler) ExecuteLocalCommand(logger logr.Logger, 
 
 	outputBytes, err := exec.Command(command, arguments...).CombinedOutput()
 	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error executing %v: %+v", command, err), containerDiagnostic, logger)
+		r.SetStatus(StatusError, fmt.Sprintf("Error executing %v %v: %+v", command, arguments, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed

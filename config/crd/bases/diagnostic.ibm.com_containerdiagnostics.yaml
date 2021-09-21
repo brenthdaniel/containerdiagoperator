@@ -82,6 +82,7 @@ spec:
                       - uninstall
                       type: string
                   required:
+                  - arguments
                   - command
                   type: object
                 type: array
