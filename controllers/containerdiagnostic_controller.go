@@ -46,7 +46,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.107.20210921"
+const OperatorVersion = "0.119.20210921"
 
 const ResultProcessing = "Processing..."
 
@@ -264,6 +264,41 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 				}
 			}
 		}
+	}
+
+	// Next, let's walk our perm dir and unzip anything in place
+	var zips []string = []string{}
+
+	err = filepath.Walk(localPermanentDirectory,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if strings.HasSuffix(info.Name(), "zip") {
+				// path is the absolute path since we call Walk with an absolute path
+				// https://pkg.go.dev/path/filepath#WalkFunc
+				zips = append(zips, path)
+			}
+			return nil
+		})
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not walk local permanent output space in %s: %+v", localPermanentDirectory, err), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
+	for _, zipFile := range zips {
+		logger.Info(fmt.Sprintf("Unzipping %s", zipFile))
+
+		outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "unzip", zipFile, "-d", filepath.Dir(zipFile))
+		var outputStr string = string(outputBytes[:])
+		if err != nil {
+			r.SetStatus(StatusError, fmt.Sprintf("Could not unzip %s: %+v %s", zipFile, err, outputStr), containerDiagnostic, logger)
+			return ctrl.Result{}, err
+		}
+
+		logger.V(1).Info(fmt.Sprintf("CommandScript unzip output: %v", outputStr))
+
+		os.Remove(zipFile)
 	}
 
 	if contextTracker.visited > 0 {
@@ -546,13 +581,14 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	}
 
 	// Download the files locally
+	localDownloadedTarFile := filepath.Join(localScratchSpaceDirectory, strings.ReplaceAll(zipFileName, ".zip", ".tar"))
 	localZipFile := filepath.Join(localScratchSpaceDirectory, zipFileName)
 
-	logger.Info(fmt.Sprintf("RunScriptOnContainer Downloading zip file to: %s", localZipFile))
+	logger.Info(fmt.Sprintf("RunScriptOnContainer Downloading file to: %s", localDownloadedTarFile))
 
-	file, err := os.OpenFile(localZipFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	file, err := os.OpenFile(localDownloadedTarFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error opening zip file %s error: %+v", localZipFile, err), containerDiagnostic, logger)
+		r.SetStatus(StatusError, fmt.Sprintf("Error opening tar file %s error: %+v", localDownloadedTarFile, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
@@ -563,18 +599,39 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	fileWriter := bufio.NewWriter(file)
 
 	var tarStderr bytes.Buffer
-	err = r.ExecInContainer(pod, container, []string{"tar", "cf", "-", remoteZipFile}, nil, &tarStderr, nil, fileWriter)
+	args := []string{"tar", "-C", filepath.Dir(remoteZipFile), "-cf", "-", filepath.Base(remoteZipFile)}
+	err = r.ExecInContainer(pod, container, args, nil, &tarStderr, nil, fileWriter)
 
+	fileWriter.Flush()
 	file.Close()
 
 	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Error downloading 'zip' file from pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+		r.SetStatus(StatusError, fmt.Sprintf("Error downloading %s from pod: %s container: %s error: %+v for %v", remoteZipFile, pod.Name, container.Name, err, args), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
+
+	// Now untar the tar file which will expand the zip file
+	logger.Info(fmt.Sprintf("RunScriptOnContainer Untarring downloaded file: %s", localDownloadedTarFile))
+
+	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "tar", "-C", localScratchSpaceDirectory, "-xvf", localDownloadedTarFile)
+	var outputStr string = string(outputBytes[:])
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not untar %s: %+v %s", localDownloadedTarFile, err, outputStr), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localScratchSpaceDirectory)
+		return
+	}
+
+	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer untar output: %v", outputStr))
+
+	// Delete the tar file
+	os.Remove(localDownloadedTarFile)
 
 	fileInfo, err := os.Stat(localZipFile)
 	if err != nil {
