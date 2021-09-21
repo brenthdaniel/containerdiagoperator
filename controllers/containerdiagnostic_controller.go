@@ -45,7 +45,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.102.20210921"
+const OperatorVersion = "0.103.20210921"
 
 const ResultProcessing = "Processing..."
 
@@ -352,8 +352,9 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		}
 	}
 
-	// Create the execute script(s)
+	remoteFilesToPackage := make(map[string]bool)
 
+	// Create the execute script(s)
 	for stepIndex, step := range containerDiagnostic.Spec.Steps {
 		if step.Command == "execute" {
 
@@ -367,6 +368,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			}
 
 			remoteOutputFile := filepath.Join(containerTmpFilesPrefix, fmt.Sprintf("containerdiag_%s_%d.txt", time.Now().Format("20060102_150405"), (stepIndex+1)))
+
+			remoteFilesToPackage[remoteOutputFile] = true
 
 			localExecuteScript := filepath.Join(localScratchSpaceDirectory, fmt.Sprintf("execute_%d.sh", (stepIndex+1)))
 
@@ -474,24 +477,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	// Now finally go through all the steps
 	for stepIndex, step := range containerDiagnostic.Spec.Steps {
-		if step.Command == "uninstall" {
-
-			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'uninstall' step"))
-
-			var stdout, stderr bytes.Buffer
-			err := r.ExecInContainer(pod, container, []string{"rm", "-rf", containerTmpFilesPrefix}, &stdout, &stderr, nil)
-
-			if err != nil {
-				r.SetStatus(StatusError, fmt.Sprintf("Error running uninstall step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
-
-				// We don't stop processing other pods/containers, just return. If this is the
-				// only error, status will show as error; othewrise, as mixed
-				Cleanup(logger, localScratchSpaceDirectory)
-				return
-			}
-
-			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'uninstall' step"))
-		} else if step.Command == "execute" {
+		if step.Command == "execute" {
 
 			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'execute' step"))
 
@@ -523,6 +509,51 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		}
 	}
 
+	// Package up files
+	remoteZipFile := filepath.Join(containerTmpFilesPrefix, fmt.Sprintf("containerdiag_%s.zip", time.Now().Format("20060102_150405")))
+
+	var zipStdout, zipStderr bytes.Buffer
+	var zipCommand []string = strings.Split(GetExecutionCommand(containerTmpFilesPrefix, "zip", ""), " ")
+	zipCommand = append(zipCommand, remoteZipFile)
+	for remoteFileToPackage := range remoteFilesToPackage {
+		zipCommand = append(zipCommand, remoteFileToPackage)
+	}
+
+	logger.Info(fmt.Sprintf("RunScriptOnContainer zipping up remote files: %v", zipCommand))
+
+	err = r.ExecInContainer(pod, container, zipCommand, &zipStdout, &zipStderr, nil)
+
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error running 'zip' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localScratchSpaceDirectory)
+		return
+	}
+
+	// Cleanup if requested
+	for _, step := range containerDiagnostic.Spec.Steps {
+		if step.Command == "uninstall" {
+
+			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'uninstall' step"))
+
+			var stdout, stderr bytes.Buffer
+			err := r.ExecInContainer(pod, container, []string{"rm", "-rf", containerTmpFilesPrefix}, &stdout, &stderr, nil)
+
+			if err != nil {
+				r.SetStatus(StatusError, fmt.Sprintf("Error running uninstall step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+
+				// We don't stop processing other pods/containers, just return. If this is the
+				// only error, status will show as error; othewrise, as mixed
+				Cleanup(logger, localScratchSpaceDirectory)
+				return
+			}
+
+			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'uninstall' step"))
+		}
+	}
+
 	resultsTracker.successes++
 
 	Cleanup(logger, localScratchSpaceDirectory)
@@ -534,7 +565,16 @@ func WriteExecutionLine(fileWriter *bufio.Writer, containerTmpFilesPrefix string
 	if redirectOutput {
 		redirectStr = fmt.Sprintf(">> %s 2>&1", outputFile)
 	}
-	fileWriter.WriteString(fmt.Sprintf("%s --inhibit-cache --library-path %s %s %s %s\n", filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", "bin", command), arguments, redirectStr))
+	fileWriter.WriteString(fmt.Sprintf("%s %s\n", GetExecutionCommand(containerTmpFilesPrefix, command, arguments), redirectStr))
+}
+
+func GetExecutionCommand(containerTmpFilesPrefix string, command string, arguments string) string {
+	// See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
+	result := fmt.Sprintf("%s --inhibit-cache --library-path %s %s", filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", "bin", command))
+	if len(arguments) > 0 {
+		result += " " + arguments
+	}
+	return result
 }
 
 func (r *ContainerDiagnosticReconciler) ProcessInstallCommand(fullCommand string, filesToTar map[string]bool, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) bool {
