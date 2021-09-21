@@ -46,7 +46,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.119.20210921"
+const OperatorVersion = "0.123.20210921"
 
 const ResultProcessing = "Processing..."
 
@@ -266,6 +266,8 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 		}
 	}
 
+	logger.Info("CommandScript: walking " + localPermanentDirectory)
+
 	// Next, let's walk our perm dir and unzip anything in place
 	var zips []string = []string{}
 
@@ -286,6 +288,8 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 		return ctrl.Result{}, err
 	}
 
+	logger.Info("CommandScript: processing zips")
+
 	for _, zipFile := range zips {
 		logger.Info(fmt.Sprintf("Unzipping %s", zipFile))
 
@@ -300,6 +304,21 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 		os.Remove(zipFile)
 	}
+
+	logger.Info("CommandScript: creating final zip")
+
+	// Finally, zip up the files for final user download
+	finalZip := filepath.Join("/tmp/containerdiagoutput", fmt.Sprintf("containerdiag_%s_%s.zip", time.Now().Format("20060102_150405"), uuid))
+	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "sh", "-c", fmt.Sprintf("cd %s; zip -r %s %s", filepath.Dir(localPermanentDirectory), finalZip, filepath.Base(localPermanentDirectory)))
+	var outputStr string = string(outputBytes[:])
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not zip %s: %+v %s", finalZip, err, outputStr), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
+	logger.V(1).Info(fmt.Sprintf("CommandScript zip output: %v", outputStr))
+
+	containerDiagnostic.Status.Download = fmt.Sprintf("kubectl cp containerdiagoperator-controller-manager-55c4f8bc98-w6hcn:%s %s --container=manager --namespace=containerdiagoperator-system", finalZip, filepath.Base(finalZip))
 
 	if contextTracker.visited > 0 {
 		if contextTracker.successes > 0 {
@@ -838,7 +857,7 @@ func (r *ContainerDiagnosticReconciler) ExecuteLocalCommand(logger logr.Logger, 
 
 		// We don't stop processing other pods/containers, just return. If this is the
 		// only error, status will show as error; othewrise, as mixed
-		return nil, err
+		return outputBytes, err
 	}
 
 	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ExecuteLocalCommand results: %v", output))

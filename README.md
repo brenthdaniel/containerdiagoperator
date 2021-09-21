@@ -213,3 +213,8 @@ FIELDS:
   ```
   sed -i.bak 's/gcr.io\/kubebuilder\/kube-rbac-proxy:v0.8.0/registry.redhat.io\/openshift4\/ose-kube-rbac-proxy:v4.7/g' config/default/manager_auth_proxy_patch.yaml && rm config/default/manager_auth_proxy_patch.yaml.bak
   ```
+* Development:
+    * Remote into a running manager container:
+      ```
+      kubectl exec $(kubectl get pods --namespace=containerdiagoperator-system | awk '/containerdiagoperator/ {print $1;}') --namespace containerdiagoperator-system --container=manager -it -- sh
+      ```
