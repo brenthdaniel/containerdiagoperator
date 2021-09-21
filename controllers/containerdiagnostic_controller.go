@@ -46,7 +46,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.123.20210921"
+const OperatorVersion = "0.125.20210921"
 
 const ResultProcessing = "Processing..."
 

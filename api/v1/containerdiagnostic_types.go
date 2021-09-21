@@ -26,7 +26,8 @@ type ContainerDiagnosticStep struct {
 	// +kubebuilder:validation:Enum=install;execute;package;uninstall
 	Command string `json:"command"`
 
-	// +kubebuilder:validation:Required
+	// The arguments for the command. Not requires for commands such as uninstall.
+	// +kubebuilder:validation:Optional
 	Arguments []string `json:"arguments"`
 }
 
