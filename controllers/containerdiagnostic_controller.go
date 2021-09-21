@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/go-logr/logr"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -46,7 +47,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.125.20210921"
+const OperatorVersion = "0.132.20210921"
 
 const ResultProcessing = "Processing..."
 
@@ -110,7 +111,7 @@ type ContextTracker struct {
 func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	logger.Info("Reconciling ContainerDiagnostic")
+	logger.Info("ContainerDiagnosticReconciler Reconcile called")
 
 	containerDiagnostic := &diagnosticv1.ContainerDiagnostic{}
 	err := r.Get(ctx, req.NamespacedName, containerDiagnostic)
@@ -318,7 +319,21 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 	logger.V(1).Info(fmt.Sprintf("CommandScript zip output: %v", outputStr))
 
-	containerDiagnostic.Status.Download = fmt.Sprintf("kubectl cp containerdiagoperator-controller-manager-55c4f8bc98-w6hcn:%s %s --container=manager --namespace=containerdiagoperator-system", finalZip, filepath.Base(finalZip))
+	// Now that we've created the zip, we can delete the actual directory to save space
+	os.RemoveAll(localPermanentDirectory)
+
+	// Container name
+	hostnameBytes, err := ioutil.ReadFile("/etc/hostname")
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not read /etc/hostname: %+v", err), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
+	containerName := string(hostnameBytes)
+	containerName = strings.ReplaceAll(containerName, "\n", "")
+	containerName = strings.ReplaceAll(containerName, "\r", "")
+
+	containerDiagnostic.Status.Download = fmt.Sprintf("kubectl cp %s:%s %s --container=manager --namespace=containerdiagoperator-system", containerName, finalZip, filepath.Base(finalZip))
 
 	if contextTracker.visited > 0 {
 		if contextTracker.successes > 0 {

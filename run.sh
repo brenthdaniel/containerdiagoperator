@@ -30,7 +30,7 @@ make docker-build docker-push IMG="kgibm/containerdiagoperator:$(awk '/const Ope
   kubectl get pods --namespace=containerdiagoperator-system && \
   sleep 30 && \
   kubectl get pods --namespace=containerdiagoperator-system && \
-  printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' "$(printf '[{"kind": "Pod", "name": "%s", "namespace": "%s"}]' "${TARGETCONTAINER}" "${TARGETNAMESPACE}")" '[{"command": "install", "arguments": ["top ps netstat df date echo vmstat sleep dmesg gzip rm"]}, {"command": "execute", "arguments": ["vmstat -tw 1 3"]}, {"command": "uninstall"}]' | kubectl create -f - && \
+  printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' "$(printf '[{"kind": "Pod", "name": "%s", "namespace": "%s"}]' "${TARGETCONTAINER}" "${TARGETNAMESPACE}")" '[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 2 -n 2"]}, {"command": "uninstall"}]' | kubectl create -f - && \
   sleep 20 && \
   kubectl describe ContainerDiagnostic diag1 --namespace=containerdiagoperator-system && \
   echo "" && \
