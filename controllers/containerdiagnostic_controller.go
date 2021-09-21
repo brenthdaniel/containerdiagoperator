@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -45,7 +46,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.103.20210921"
+const OperatorVersion = "0.107.20210921"
 
 const ResultProcessing = "Processing..."
 
@@ -81,9 +82,10 @@ type ContainerDiagnosticReconciler struct {
 	EventRecorder record.EventRecorder
 }
 
-type ResultsTracker struct {
-	visited   int
-	successes int
+type ContextTracker struct {
+	visited                 int
+	successes               int
+	localPermanentDirectory string
 }
 
 // +kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics,verbs=get;list;watch;create;update;patch;delete
@@ -227,7 +229,17 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 		return ctrl.Result{}, nil
 	}
 
-	resultsTracker := ResultsTracker{}
+	// Create a permanent directory for this run
+	// user is 'nobody' so /tmp is really the only place
+	uuid := uuid.New().String()
+	localPermanentDirectory := filepath.Join("/tmp/containerdiagoutput", uuid)
+	err := os.MkdirAll(localPermanentDirectory, os.ModePerm)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not create local permanent output space in %s: %+v", localPermanentDirectory, err), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
+	contextTracker := ContextTracker{localPermanentDirectory: localPermanentDirectory}
 
 	if containerDiagnostic.Spec.TargetObjects != nil {
 		for _, targetObject := range containerDiagnostic.Spec.TargetObjects {
@@ -242,7 +254,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 			if err == nil {
 				logger.V(1).Info(fmt.Sprintf("found pod: %+v", pod))
-				r.RunScriptOnPod(ctx, req, containerDiagnostic, logger, pod, &resultsTracker)
+				r.RunScriptOnPod(ctx, req, containerDiagnostic, logger, pod, &contextTracker)
 			} else {
 				if errors.IsNotFound(err) {
 					r.SetStatus(StatusError, fmt.Sprintf("Pod not found: name: %s namespace: %s", targetObject.Name, targetObject.Namespace), containerDiagnostic, logger)
@@ -254,16 +266,16 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 		}
 	}
 
-	if resultsTracker.visited > 0 {
-		if resultsTracker.successes > 0 {
+	if contextTracker.visited > 0 {
+		if contextTracker.successes > 0 {
 			var containerText string
-			if resultsTracker.successes == 1 {
+			if contextTracker.successes == 1 {
 				containerText = "container"
 			} else {
 				containerText = "containers"
 			}
 
-			r.SetStatus(StatusSuccess, fmt.Sprintf("Successfully finished on %d %s", resultsTracker.successes, containerText), containerDiagnostic, logger)
+			r.SetStatus(StatusSuccess, fmt.Sprintf("Successfully finished on %d %s", contextTracker.successes, containerText), containerDiagnostic, logger)
 		}
 	} else {
 		// If none were visited and there's already an error, then just leave that as probably a pod wasn't found
@@ -275,18 +287,18 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 	return ctrl.Result{}, nil
 }
 
-func (r *ContainerDiagnosticReconciler) RunScriptOnPod(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, resultsTracker *ResultsTracker) {
+func (r *ContainerDiagnosticReconciler) RunScriptOnPod(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, contextTracker *ContextTracker) {
 	logger.Info(fmt.Sprintf("RunScriptOnPod containers: %d", len(pod.Spec.Containers)))
 	for _, container := range pod.Spec.Containers {
 		logger.Info(fmt.Sprintf("RunScriptOnPod container: %+v", container))
-		r.RunScriptOnContainer(ctx, req, containerDiagnostic, logger, pod, container, resultsTracker)
+		r.RunScriptOnContainer(ctx, req, containerDiagnostic, logger, pod, container, contextTracker)
 	}
 }
 
-func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, resultsTracker *ResultsTracker) {
+func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, contextTracker *ContextTracker) {
 	logger.Info(fmt.Sprintf("RunScriptOnContainer pod: %s, container: %s", pod.Name, container.Name))
 
-	resultsTracker.visited++
+	contextTracker.visited++
 
 	uuid := uuid.New().String()
 
@@ -305,7 +317,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer Created local scratch space: %s", localScratchSpaceDirectory))
 
-	containerTmpFilesPrefix, ok := r.EnsureDirectoriesOnContainer(ctx, req, containerDiagnostic, logger, pod, container, resultsTracker, uuid)
+	containerTmpFilesPrefix, ok := r.EnsureDirectoriesOnContainer(ctx, req, containerDiagnostic, logger, pod, container, contextTracker, uuid)
 	if !ok {
 		// The error will have been logged within the above function.
 		// We don't stop processing other pods/containers, just return. If this is the
@@ -459,7 +471,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		logger.Info(fmt.Sprintf("RunScriptOnContainer local tar file binary size: %d", fileReader.Size()))
 
 		var tarStdout, tarStderr bytes.Buffer
-		err = r.ExecInContainer(pod, container, []string{"tar", "-xmf", "-", "-C", containerTmpFilesPrefix}, &tarStdout, &tarStderr, fileReader)
+		err = r.ExecInContainer(pod, container, []string{"tar", "-xmf", "-", "-C", containerTmpFilesPrefix}, &tarStdout, &tarStderr, fileReader, nil)
 
 		file.Close()
 
@@ -486,7 +498,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			logger.Info(fmt.Sprintf("RunScriptOnContainer Running %v", remoteExecutionScript))
 
 			var stdout, stderr bytes.Buffer
-			err := r.ExecInContainer(pod, container, []string{remoteExecutionScript}, &stdout, &stderr, nil)
+			err := r.ExecInContainer(pod, container, []string{remoteExecutionScript}, &stdout, &stderr, nil, nil)
 
 			if err != nil {
 				r.SetStatus(StatusError, fmt.Sprintf("Error running 'execute' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -510,7 +522,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	}
 
 	// Package up files
-	remoteZipFile := filepath.Join(containerTmpFilesPrefix, fmt.Sprintf("containerdiag_%s.zip", time.Now().Format("20060102_150405")))
+	zipFileName := fmt.Sprintf("containerdiag_%s.zip", time.Now().Format("20060102_150405"))
+	remoteZipFile := filepath.Join(containerTmpFilesPrefix, zipFileName)
 
 	var zipStdout, zipStderr bytes.Buffer
 	var zipCommand []string = strings.Split(GetExecutionCommand(containerTmpFilesPrefix, "zip", ""), " ")
@@ -521,7 +534,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer zipping up remote files: %v", zipCommand))
 
-	err = r.ExecInContainer(pod, container, zipCommand, &zipStdout, &zipStderr, nil)
+	err = r.ExecInContainer(pod, container, zipCommand, &zipStdout, &zipStderr, nil, nil)
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error running 'zip' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -532,6 +545,74 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		return
 	}
 
+	// Download the files locally
+	localZipFile := filepath.Join(localScratchSpaceDirectory, zipFileName)
+
+	logger.Info(fmt.Sprintf("RunScriptOnContainer Downloading zip file to: %s", localZipFile))
+
+	file, err := os.OpenFile(localZipFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error opening zip file %s error: %+v", localZipFile, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localScratchSpaceDirectory)
+		return
+	}
+
+	fileWriter := bufio.NewWriter(file)
+
+	var tarStderr bytes.Buffer
+	err = r.ExecInContainer(pod, container, []string{"tar", "cf", "-", remoteZipFile}, nil, &tarStderr, nil, fileWriter)
+
+	file.Close()
+
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error downloading 'zip' file from pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localScratchSpaceDirectory)
+		return
+	}
+
+	fileInfo, err := os.Stat(localZipFile)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not find local zip file: %s error: %+v", localZipFile, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localScratchSpaceDirectory)
+		return
+	}
+
+	logger.Info(fmt.Sprintf("RunScriptOnContainer Finished downloading zip file, size: %d", fileInfo.Size()))
+
+	// Now move the zip over to the permanent space
+	permdir := filepath.Join(contextTracker.localPermanentDirectory, "namespaces", pod.Namespace, "pods", pod.Name, "containers", container.Name, uuid)
+	err = os.MkdirAll(permdir, os.ModePerm)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not create permanent output space in %s: %+v", permdir, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localScratchSpaceDirectory)
+		return
+	}
+
+	// Finally copy the zip file over
+	err = CopyFile(localZipFile, filepath.Join(permdir, zipFileName))
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not copy file file to permanent directory %s: %+v", permdir, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localScratchSpaceDirectory)
+		return
+	}
+
+	logger.Info(fmt.Sprintf("RunScriptOnContainer Copied zip file to: %s", permdir))
+
 	// Cleanup if requested
 	for _, step := range containerDiagnostic.Spec.Steps {
 		if step.Command == "uninstall" {
@@ -539,7 +620,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'uninstall' step"))
 
 			var stdout, stderr bytes.Buffer
-			err := r.ExecInContainer(pod, container, []string{"rm", "-rf", containerTmpFilesPrefix}, &stdout, &stderr, nil)
+			err := r.ExecInContainer(pod, container, []string{"rm", "-rf", containerTmpFilesPrefix}, &stdout, &stderr, nil, nil)
 
 			if err != nil {
 				r.SetStatus(StatusError, fmt.Sprintf("Error running uninstall step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -554,9 +635,26 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		}
 	}
 
-	resultsTracker.successes++
+	contextTracker.successes++
 
 	Cleanup(logger, localScratchSpaceDirectory)
+}
+
+func CopyFile(src string, dest string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	outFile, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, srcFile)
+	return err
 }
 
 func WriteExecutionLine(fileWriter *bufio.Writer, containerTmpFilesPrefix string, command string, arguments string, redirectOutput bool, outputFile string) {
@@ -647,7 +745,7 @@ func Cleanup(logger logr.Logger, localScratchSpaceDirectory string) {
 	}
 }
 
-func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, resultsTracker *ResultsTracker, uuid string) (response string, ok bool) {
+func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, contextTracker *ContextTracker, uuid string) (response string, ok bool) {
 
 	containerTmpFilesPrefix := containerDiagnostic.Spec.Directory
 
@@ -658,7 +756,7 @@ func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context
 	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer running mkdir: %s", containerTmpFilesPrefix))
 
 	var stdout, stderr bytes.Buffer
-	err := r.ExecInContainer(pod, container, []string{"mkdir", "-p", containerTmpFilesPrefix}, &stdout, &stderr, nil)
+	err := r.ExecInContainer(pod, container, []string{"mkdir", "-p", containerTmpFilesPrefix}, &stdout, &stderr, nil, nil)
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error executing mkdir in container: %+v", err), containerDiagnostic, logger)
@@ -715,7 +813,7 @@ func (r *ContainerDiagnosticReconciler) FindSharedLibraries(logger logr.Logger, 
 	return lines, true
 }
 
-func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, container corev1.Container, command []string, stdout *bytes.Buffer, stderr *bytes.Buffer, stdin *bufio.Reader) error {
+func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, container corev1.Container, command []string, stdout *bytes.Buffer, stderr *bytes.Buffer, stdin *bufio.Reader, stdoutWriter *bufio.Writer) error {
 	clientset, err := kubernetes.NewForConfig(r.Config)
 	if err != nil {
 		return err
@@ -752,18 +850,35 @@ func (r *ContainerDiagnosticReconciler) ExecInContainer(pod *corev1.Pod, contain
 	}
 
 	if stdin == nil {
-		err = exec.Stream(remotecommand.StreamOptions{
-			Stdout: stdout,
-			Stderr: stderr,
-			Tty:    false,
-		})
+		if stdoutWriter == nil {
+			err = exec.Stream(remotecommand.StreamOptions{
+				Stdout: stdout,
+				Stderr: stderr,
+				Tty:    false,
+			})
+		} else {
+			err = exec.Stream(remotecommand.StreamOptions{
+				Stdout: stdoutWriter,
+				Stderr: stderr,
+				Tty:    false,
+			})
+		}
 	} else {
-		err = exec.Stream(remotecommand.StreamOptions{
-			Stdout: stdout,
-			Stderr: stderr,
-			Stdin:  stdin,
-			Tty:    false,
-		})
+		if stdoutWriter == nil {
+			err = exec.Stream(remotecommand.StreamOptions{
+				Stdout: stdout,
+				Stderr: stderr,
+				Stdin:  stdin,
+				Tty:    false,
+			})
+		} else {
+			err = exec.Stream(remotecommand.StreamOptions{
+				Stdout: stdoutWriter,
+				Stderr: stderr,
+				Stdin:  stdin,
+				Tty:    false,
+			})
+		}
 	}
 
 	return err
