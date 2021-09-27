@@ -6,7 +6,7 @@ The goal of this operator is to automate running diagnostics on a container with
 
 #### Example execution
 
-##### YAML Example (top)
+##### YAML Example (top -H)
 
 ```
 apiVersion: diagnostic.ibm.com/v1
@@ -30,7 +30,7 @@ spec:
   - command: clean
 ```
 
-##### YAML Example (linperf.sh)
+##### YAML Example (Liberty linperf.sh)
 
 ```
 apiVersion: diagnostic.ibm.com/v1
@@ -62,9 +62,13 @@ spec:
     - /output/javacore*
 ```
 
-##### JSON Example
+##### JSON Example (top -H)
 
 `printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 2 -n 2"]}, {"command": "clean"}]' | kubectl create -f -`
+
+##### JSON Example (Liberty linperf.sh)
+
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["linperf.sh"]}, {"command": "execute", "arguments": ["linperf.sh"]}, {"command": "package", "arguments": ["/output/javacore*", "/logs/", "/config/"]} , {"command": "clean", "arguments": ["/output/javacore*"]}]' | kubectl create -f -`
 
 #### Showing ContainerDiagnostic resources
 
