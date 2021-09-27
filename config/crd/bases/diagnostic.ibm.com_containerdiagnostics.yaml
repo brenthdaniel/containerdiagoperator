@@ -71,8 +71,7 @@ spec:
                 items:
                   properties:
                     arguments:
-                      description: The arguments for the command. Not requires for
-                        commands such as uninstall.
+                      description: The arguments for the command (if any).
                       items:
                         type: string
                       type: array
@@ -81,7 +80,7 @@ spec:
                       - install
                       - execute
                       - package
-                      - uninstall
+                      - clean
                       type: string
                   required:
                   - command

@@ -47,7 +47,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.151.20210927"
+const OperatorVersion = "0.156.20210927"
 
 const ResultProcessing = "Processing..."
 
@@ -487,10 +487,12 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 						// a shabang line, so add that in
 						localScriptFile.WriteString("#!/bin/sh\n")
 
+						fileProcessingLogLevel := 1
+
 						for sourceScriptFileScanner.Scan() {
 							line := sourceScriptFileScanner.Text()
 
-							logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer processing %s line: %s", command, line))
+							logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer processing %s line: %s", command, line))
 
 							if !strings.Contains(line, "$(tput") {
 								if !strings.HasPrefix(line, "#") && !strings.Contains(line, "FILES_STRING=") && !strings.Contains(line, "TEMP_STRING=") {
@@ -541,15 +543,15 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 									for _, replaceCommand := range replacements {
 										if replaceCommand == "tar" && strings.Contains(line, ".tar") {
 										} else {
-											logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer before replacing %s in line: %s", replaceCommand, line))
+											logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer before replacing %s in line: %s", replaceCommand, line))
 											line = strings.ReplaceAll(line, replaceCommand, GetExecutionCommand(containerTmpFilesPrefix, replaceCommand, ""))
-											logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer after replacing %s in line: %s", replaceCommand, line))
+											logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer after replacing %s in line: %s", replaceCommand, line))
 										}
 									}
 
 									line = line + line_end
 								}
-								logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer writing line: %s", line))
+								logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer writing line: %s", line))
 								localScriptFile.WriteString(line + "\n")
 							}
 						}
@@ -613,21 +615,19 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				return
 			}
 
-			localExecuteFileWriter := bufio.NewWriter(localExecuteFile)
-
 			// Script header
-			localExecuteFileWriter.WriteString("#!/bin/sh\n")
+			localExecuteFile.WriteString("#!/bin/sh\n")
 
 			// Change directory to the temp directory in case any command needs to use the current working directory for scratch files
-			localExecuteFileWriter.WriteString(fmt.Sprintf("cd %s\n", containerTmpFilesPrefix))
+			localExecuteFile.WriteString(fmt.Sprintf("cd %s\n", containerTmpFilesPrefix))
 
 			// Echo outputfile directly to stdout without redirecting to the output file because a user executing this script wants to know where the output goes
-			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"Writing output to %s\"", remoteOutputFile), false, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"Writing output to %s\"", remoteOutputFile), false, remoteOutputFile)
 
 			// Echo a simple prolog to the output file
-			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
-			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"containerdiag: Started execution\"", true, remoteOutputFile)
-			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"containerdiag: Started execution\"", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
 
 			// Build the command execution with arguments
 			command := step.Arguments[0]
@@ -651,27 +651,72 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			// Execute the command with arguments
 			if command == "linperf.sh" {
 				executionScript := filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, command)
-				localExecuteFileWriter.WriteString(fmt.Sprintf("%s $(%s) >> %s 2>&1\n", executionScript, GetExecutionCommand(containerTmpFilesPrefix, "pgrep", "java"), remoteOutputFile))
+				localExecuteFile.WriteString(fmt.Sprintf("%s $(%s) >> %s 2>&1\n", executionScript, GetExecutionCommand(containerTmpFilesPrefix, "pgrep", "java"), remoteOutputFile))
 
 				remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, "linperf_RESULTS.tar.gz")] = true
 			} else {
-				WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, command, arguments, true, remoteOutputFile)
+				WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, command, arguments, true, remoteOutputFile)
 			}
 
 			// Echo a simple epilog to the output file
-			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
-			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
-			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"containerdiag: Finished execution\"", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"containerdiag: Finished execution\"", true, remoteOutputFile)
 
-			localExecuteFileWriter.Flush()
 			localExecuteFile.Close()
 
 			os.Chmod(localExecuteScript, os.ModePerm)
 
 			// Now that the local file is written, add it to the files to transfer over:
 			filesToTar[localExecuteScript] = true
+		} else if step.Command == "package" {
+			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'package' step"))
+
+			if step.Arguments == nil || len(step.Arguments) == 0 {
+				r.SetStatus(StatusError, fmt.Sprintf("Package command must have arguments including the files to package"), containerDiagnostic, logger)
+
+				// We don't stop processing other pods/containers, just return. If this is the
+				// only error, status will show as error; othewrise, as mixed
+				Cleanup(logger, localScratchSpaceDirectory)
+				return
+			}
+
+			for _, arg := range step.Arguments {
+				remoteFilesToPackage[arg] = true
+			}
+
+			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'package' step"))
 		}
 	}
+
+	// Create the zip script
+	zipFileName := fmt.Sprintf("containerdiag_%s.zip", time.Now().Format("20060102_150405"))
+	remoteZipFile := filepath.Join(containerTmpFilesPrefix, zipFileName)
+
+	localZipScript := filepath.Join(localScratchSpaceDirectory, "zip.sh")
+	localZipScriptFile, err := os.OpenFile(localZipScript, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error writing local zip.sh file %s error: %+v", localZipScript, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localScratchSpaceDirectory)
+		return
+	}
+
+	localZipScriptFile.WriteString("#!/bin/sh\n")
+	localZipScriptFile.WriteString(fmt.Sprintf("%s", GetExecutionCommand(containerTmpFilesPrefix, "zip", "-r")))
+	localZipScriptFile.WriteString(fmt.Sprintf(" %s", remoteZipFile))
+	for remoteFileToPackage := range remoteFilesToPackage {
+		logger.Info(fmt.Sprintf("RunScriptOnContainer packaging %s", remoteFileToPackage))
+		localZipScriptFile.WriteString(fmt.Sprintf(" %s", remoteFileToPackage))
+	}
+	localZipScriptFile.WriteString("\n")
+	localZipScriptFile.Close()
+
+	os.Chmod(localZipScript, os.ModePerm)
+
+	filesToTar[localZipScript] = true
 
 	// Upload any files that are needed
 	if len(filesToTar) > 0 {
@@ -723,7 +768,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer tar results: stdout: %v stderr: %v", tarStdout.String(), tarStderr.String()))
 	}
 
-	// Now finally go through all the steps
+	// Run any executions
 	for stepIndex, step := range containerDiagnostic.Spec.Steps {
 		if step.Command == "execute" {
 
@@ -757,20 +802,14 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		}
 	}
 
-	// Package up files
-	zipFileName := fmt.Sprintf("containerdiag_%s.zip", time.Now().Format("20060102_150405"))
-	remoteZipFile := filepath.Join(containerTmpFilesPrefix, zipFileName)
+	// Execute the final zip
 
 	var zipStdout, zipStderr bytes.Buffer
-	var zipCommand []string = strings.Split(GetExecutionCommand(containerTmpFilesPrefix, "zip", ""), " ")
-	zipCommand = append(zipCommand, remoteZipFile)
-	for remoteFileToPackage := range remoteFilesToPackage {
-		zipCommand = append(zipCommand, remoteFileToPackage)
-	}
 
-	logger.Info(fmt.Sprintf("RunScriptOnContainer zipping up remote files: %v", zipCommand))
+	zipScript := filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, "zip.sh")
+	logger.Info(fmt.Sprintf("RunScriptOnContainer zipping up remote files: %s", zipScript))
 
-	err = r.ExecInContainer(pod, container, zipCommand, &zipStdout, &zipStderr, nil, nil)
+	err = r.ExecInContainer(pod, container, []string{zipScript}, &zipStdout, &zipStderr, nil, nil)
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error running 'zip' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -873,15 +912,15 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	// Cleanup if requested
 	for _, step := range containerDiagnostic.Spec.Steps {
-		if step.Command == "uninstall" {
+		if step.Command == "clean" {
 
-			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'uninstall' step"))
+			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'clean' step"))
 
 			var stdout, stderr bytes.Buffer
 			err := r.ExecInContainer(pod, container, []string{"rm", "-rf", containerTmpFilesPrefix}, &stdout, &stderr, nil, nil)
 
 			if err != nil {
-				r.SetStatus(StatusError, fmt.Sprintf("Error running uninstall step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+				r.SetStatus(StatusError, fmt.Sprintf("Error running clean step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
 
 				// We don't stop processing other pods/containers, just return. If this is the
 				// only error, status will show as error; othewrise, as mixed
@@ -889,7 +928,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				return
 			}
 
-			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'uninstall' step"))
+			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'clean' step"))
 		}
 	}
 
@@ -915,7 +954,7 @@ func CopyFile(src string, dest string) error {
 	return err
 }
 
-func WriteExecutionLine(fileWriter *bufio.Writer, containerTmpFilesPrefix string, command string, arguments string, redirectOutput bool, outputFile string) {
+func WriteExecutionLine(fileWriter *os.File, containerTmpFilesPrefix string, command string, arguments string, redirectOutput bool, outputFile string) {
 	// See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
 	var redirectStr string = ""
 	if redirectOutput {

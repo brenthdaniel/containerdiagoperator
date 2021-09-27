@@ -27,12 +27,12 @@ spec:
   - command: execute
     arguments:
     - top -b -H -d 2 -n 2
-  - command: uninstall
+  - command: clean
 ```
 
 ##### JSON Example
 
-`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 2 -n 2"]}, {"command": "uninstall"}]' | kubectl create -f -`
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 2 -n 2"]}, {"command": "clean"}]' | kubectl create -f -`
 
 #### Showing ContainerDiagnostic resources
 
