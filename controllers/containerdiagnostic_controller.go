@@ -47,7 +47,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.134.20210927"
+const OperatorVersion = "0.142.20210927"
 
 const ResultProcessing = "Processing..."
 
@@ -408,6 +408,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		"/usr/bin/cp",
 		"/usr/bin/date",
 		"/usr/bin/echo",
+		"/usr/bin/pgrep",
 		"/usr/bin/pwd",
 		"/usr/bin/tee",
 		"/usr/bin/rm",
@@ -483,9 +484,65 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 						}
 
 						sourceScriptFileScanner := bufio.NewScanner(sourceScriptFile)
+
+						// For some reason linperf.sh (including at the main Drupal page) doesn't have
+						// a shabang line, so add that in
+						localScriptFileWriter.WriteString("#!/bin/sh\n")
+
 						for sourceScriptFileScanner.Scan() {
 							line := sourceScriptFileScanner.Text()
-							localScriptFileWriter.WriteString(line + "\n")
+
+							if !strings.Contains(line, "$(tput") {
+								if !strings.HasPrefix(line, "#") && !strings.Contains(line, "FILES_STRING=") && !strings.Contains(line, "TEMP_STRING=") {
+
+									line = strings.ReplaceAll(line, "MustGather>>", "MustGather:")
+
+									i := strings.Index(line, ">")
+									line_end := ""
+									if i != -1 {
+										line_end = line[i:]
+										line = line[:i]
+									}
+
+									replacements := []string{
+										"echo",
+										"date",
+										"tee",
+										"rm",
+										"sleep",
+										"whoami",
+										"netstat",
+										"top",
+										"expr",
+										"vmstat",
+										"ps",
+										"kill",
+										"dmesg",
+										"df",
+										"gzip",
+										"tput",
+										"tar",
+									}
+
+									if strings.Contains(line, "echo $(date)") && strings.Contains(line, "\"MustGather") {
+										replacements = []string{
+											"echo",
+											"date",
+											"tee",
+										}
+									}
+
+									for _, replaceCommand := range replacements {
+										if replaceCommand == "tar" && strings.Contains(line, ".tar") {
+										} else {
+											line = strings.ReplaceAll(line, replaceCommand, GetExecutionCommand(containerTmpFilesPrefix, replaceCommand, ""))
+										}
+									}
+
+									line = line + line_end
+								}
+								localScriptFileWriter.WriteString(line + "\n")
+							}
 						}
 
 						sourceScriptFile.Close()
