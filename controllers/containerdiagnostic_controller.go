@@ -47,7 +47,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.142.20210927"
+const OperatorVersion = "0.151.20210927"
 
 const ResultProcessing = "Processing..."
 
@@ -470,8 +470,6 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 							return
 						}
 
-						localScriptFileWriter := bufio.NewWriter(localScriptFile)
-
 						sourceScript := "/usr/local/bin/" + command
 						sourceScriptFile, err := os.Open(sourceScript)
 						if err != nil {
@@ -487,10 +485,12 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 						// For some reason linperf.sh (including at the main Drupal page) doesn't have
 						// a shabang line, so add that in
-						localScriptFileWriter.WriteString("#!/bin/sh\n")
+						localScriptFile.WriteString("#!/bin/sh\n")
 
 						for sourceScriptFileScanner.Scan() {
 							line := sourceScriptFileScanner.Text()
+
+							logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer processing %s line: %s", command, line))
 
 							if !strings.Contains(line, "$(tput") {
 								if !strings.HasPrefix(line, "#") && !strings.Contains(line, "FILES_STRING=") && !strings.Contains(line, "TEMP_STRING=") {
@@ -502,6 +502,12 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 									if i != -1 {
 										line_end = line[i:]
 										line = line[:i]
+									} else {
+										i := strings.Index(line, "#")
+										if i != -1 {
+											line_end = line[i:]
+											line = line[:i]
+										}
 									}
 
 									replacements := []string{
@@ -535,20 +541,22 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 									for _, replaceCommand := range replacements {
 										if replaceCommand == "tar" && strings.Contains(line, ".tar") {
 										} else {
+											logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer before replacing %s in line: %s", replaceCommand, line))
 											line = strings.ReplaceAll(line, replaceCommand, GetExecutionCommand(containerTmpFilesPrefix, replaceCommand, ""))
+											logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer after replacing %s in line: %s", replaceCommand, line))
 										}
 									}
 
 									line = line + line_end
 								}
-								localScriptFileWriter.WriteString(line + "\n")
+								logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer writing line: %s", line))
+								localScriptFile.WriteString(line + "\n")
 							}
 						}
 
-						sourceScriptFile.Close()
-
-						localScriptFileWriter.Flush()
 						localScriptFile.Close()
+
+						sourceScriptFile.Close()
 
 						os.Chmod(localScript, os.ModePerm)
 
@@ -641,7 +649,14 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			}
 
 			// Execute the command with arguments
-			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, command, arguments, true, remoteOutputFile)
+			if command == "linperf.sh" {
+				executionScript := filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, command)
+				localExecuteFileWriter.WriteString(fmt.Sprintf("%s $(%s) >> %s 2>&1\n", executionScript, GetExecutionCommand(containerTmpFilesPrefix, "pgrep", "java"), remoteOutputFile))
+
+				remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, "linperf_RESULTS.tar.gz")] = true
+			} else {
+				WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, command, arguments, true, remoteOutputFile)
+			}
 
 			// Echo a simple epilog to the output file
 			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
