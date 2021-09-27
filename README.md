@@ -6,7 +6,7 @@ The goal of this operator is to automate running diagnostics on a container with
 
 #### Example execution
 
-##### YAML Example
+##### YAML Example (top)
 
 ```
 apiVersion: diagnostic.ibm.com/v1
@@ -28,6 +28,38 @@ spec:
     arguments:
     - top -b -H -d 2 -n 2
   - command: clean
+```
+
+##### YAML Example (linperf.sh)
+
+```
+apiVersion: diagnostic.ibm.com/v1
+kind: ContainerDiagnostic
+metadata:
+  name: diag1
+  namespace: containerdiagoperator-system
+spec:
+  command: script
+  targetObjects:
+  - kind: Pod
+    name: liberty1-774c5fccc6-f7mjt
+    namespace: testns1
+  steps:
+  - command: install
+    arguments:
+    - linperf.sh
+  - command: execute
+    arguments:
+    - linperf.sh
+  - command: package
+    arguments:
+    - linperf_RESULTS.tar.gz
+    - /output/javacore*
+    - /logs/
+    - /config/
+  - command: clean
+    arguments:
+    - /output/javacore*
 ```
 
 ##### JSON Example
