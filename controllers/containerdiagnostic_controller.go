@@ -47,7 +47,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.132.20210921"
+const OperatorVersion = "0.134.20210927"
 
 const ResultProcessing = "Processing..."
 
@@ -404,7 +404,16 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	var tarArguments []string = []string{"-cv", "-f", localTarFile}
 
 	// First add in some basic commands that we'll always need
-	for _, command := range []string{"/usr/bin/date", "/usr/bin/echo", "/usr/bin/zip"} {
+	for _, command := range []string{
+		"/usr/bin/cp",
+		"/usr/bin/date",
+		"/usr/bin/echo",
+		"/usr/bin/pwd",
+		"/usr/bin/tee",
+		"/usr/bin/rm",
+		"/usr/bin/sleep",
+		"/usr/bin/zip",
+	} {
 		ok := r.ProcessInstallCommand(command, filesToTar, containerDiagnostic, logger)
 		if !ok {
 			// The error will have been logged within the above function.
@@ -420,13 +429,87 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		if step.Command == "install" {
 			for _, commandLine := range step.Arguments {
 				for _, command := range strings.Split(commandLine, " ") {
-					ok := r.ProcessInstallCommand("/usr/bin/"+command, filesToTar, containerDiagnostic, logger)
-					if !ok {
-						// The error will have been logged within the above function.
-						// We don't stop processing other pods/containers, just return. If this is the
-						// only error, status will show as error; othewrise, as mixed
-						Cleanup(logger, localScratchSpaceDirectory)
-						return
+
+					// Specifically known and pre-packaged scripts
+					if command == "linperf.sh" {
+						// Add prereqs that aren't already installed above
+						for _, command := range []string{
+							"/usr/bin/whoami",
+							"/usr/bin/netstat",
+							"/usr/bin/top",
+							"/usr/bin/expr",
+							"/usr/bin/vmstat",
+							"/usr/bin/ps",
+							"/usr/bin/kill",
+							"/usr/bin/dmesg",
+							"/usr/bin/df",
+							"/usr/bin/gzip",
+							"/usr/bin/tput",
+						} {
+							ok := r.ProcessInstallCommand(command, filesToTar, containerDiagnostic, logger)
+							if !ok {
+								// The error will have been logged within the above function.
+								// We don't stop processing other pods/containers, just return. If this is the
+								// only error, status will show as error; othewrise, as mixed
+								Cleanup(logger, localScratchSpaceDirectory)
+								return
+							}
+						}
+
+						// Now we need to copy the script over to our local scratch space to modify the command executions
+						localScript := filepath.Join(localScratchSpaceDirectory, command)
+						localScriptFile, err := os.OpenFile(localScript, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+
+						if err != nil {
+							r.SetStatus(StatusError, fmt.Sprintf("Error writing local script file %s error: %+v", command, err), containerDiagnostic, logger)
+
+							// We don't stop processing other pods/containers, just return. If this is the
+							// only error, status will show as error; othewrise, as mixed
+							Cleanup(logger, localScratchSpaceDirectory)
+							return
+						}
+
+						localScriptFileWriter := bufio.NewWriter(localScriptFile)
+
+						sourceScript := "/usr/local/bin/" + command
+						sourceScriptFile, err := os.Open(sourceScript)
+						if err != nil {
+							r.SetStatus(StatusError, fmt.Sprintf("Error reading file %s error: %+v", sourceScript, err), containerDiagnostic, logger)
+
+							// We don't stop processing other pods/containers, just return. If this is the
+							// only error, status will show as error; othewrise, as mixed
+							Cleanup(logger, localScratchSpaceDirectory)
+							return
+						}
+
+						sourceScriptFileScanner := bufio.NewScanner(sourceScriptFile)
+						for sourceScriptFileScanner.Scan() {
+							line := sourceScriptFileScanner.Text()
+							localScriptFileWriter.WriteString(line + "\n")
+						}
+
+						sourceScriptFile.Close()
+
+						localScriptFileWriter.Flush()
+						localScriptFile.Close()
+
+						os.Chmod(localScript, os.ModePerm)
+
+						// Now that the local file is written, add it to the files to transfer over:
+						filesToTar[localScript] = true
+
+					} else {
+
+						// Normal command from /usr/bin/
+
+						ok := r.ProcessInstallCommand("/usr/bin/"+command, filesToTar, containerDiagnostic, logger)
+						if !ok {
+							// The error will have been logged within the above function.
+							// We don't stop processing other pods/containers, just return. If this is the
+							// only error, status will show as error; othewrise, as mixed
+							Cleanup(logger, localScratchSpaceDirectory)
+							return
+						}
 					}
 				}
 			}
@@ -466,12 +549,22 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			}
 
 			localExecuteFileWriter := bufio.NewWriter(localExecuteFile)
+
+			// Script header
 			localExecuteFileWriter.WriteString("#!/bin/sh\n")
+
+			// Change directory to the temp directory in case any command needs to use the current working directory for scratch files
+			localExecuteFileWriter.WriteString(fmt.Sprintf("cd %s\n", containerTmpFilesPrefix))
+
+			// Echo outputfile directly to stdout without redirecting to the output file because a user executing this script wants to know where the output goes
 			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"Writing output to %s\"", remoteOutputFile), false, remoteOutputFile)
+
+			// Echo a simple prolog to the output file
 			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
 			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"containerdiag: Started execution\"", true, remoteOutputFile)
 			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
 
+			// Build the command execution with arguments
 			command := step.Arguments[0]
 			arguments := ""
 
@@ -490,8 +583,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				}
 			}
 
+			// Execute the command with arguments
 			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, command, arguments, true, remoteOutputFile)
 
+			// Echo a simple epilog to the output file
 			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
 			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
 			WriteExecutionLine(localExecuteFileWriter, containerTmpFilesPrefix, "echo", "\"containerdiag: Finished execution\"", true, remoteOutputFile)
