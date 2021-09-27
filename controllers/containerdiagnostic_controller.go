@@ -47,7 +47,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.156.20210927"
+const OperatorVersion = "0.158.20210927"
 
 const ResultProcessing = "Processing..."
 
@@ -487,7 +487,11 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 						// a shabang line, so add that in
 						localScriptFile.WriteString("#!/bin/sh\n")
 
-						fileProcessingLogLevel := 1
+						// Really mysterious, unsolved issue where if we aren't logging these verbose statements
+						// then sometimes the resulting script has overlapping unexpected strings which cause
+						// execution failure. The issue is non-deterministic and doesn't seem to be related
+						// to ReplaceAll as that should be non-overlapping, so for now just log in verbose mode.
+						fileProcessingLogLevel := 0
 
 						for sourceScriptFileScanner.Scan() {
 							line := sourceScriptFileScanner.Text()
@@ -584,6 +588,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	}
 
 	remoteFilesToPackage := make(map[string]bool)
+
+	remoteFilesToClean := make(map[string]bool)
+
+	remoteFilesToClean[containerTmpFilesPrefix] = true
 
 	// Create the execute script(s)
 	for stepIndex, step := range containerDiagnostic.Spec.Steps {
@@ -686,6 +694,14 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			}
 
 			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'package' step"))
+		} else if step.Command == "clean" {
+			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'clean' step"))
+
+			for _, arg := range step.Arguments {
+				remoteFilesToClean[arg] = true
+			}
+
+			logger.Info(fmt.Sprintf("RunScriptOnContainer finished 'clean' step"))
 		}
 	}
 
@@ -717,6 +733,31 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	os.Chmod(localZipScript, os.ModePerm)
 
 	filesToTar[localZipScript] = true
+
+	// Create the clean script
+	localCleanScript := filepath.Join(localScratchSpaceDirectory, "clean.sh")
+	localCleanScriptFile, err := os.OpenFile(localCleanScript, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Error writing local clean.sh file %s error: %+v", localCleanScript, err), containerDiagnostic, logger)
+
+		// We don't stop processing other pods/containers, just return. If this is the
+		// only error, status will show as error; othewrise, as mixed
+		Cleanup(logger, localScratchSpaceDirectory)
+		return
+	}
+
+	localCleanScriptFile.WriteString("#!/bin/sh\n")
+	localCleanScriptFile.WriteString(fmt.Sprintf("%s", GetExecutionCommand(containerTmpFilesPrefix, "rm", "-rf")))
+	for remoteFileToClean := range remoteFilesToClean {
+		logger.Info(fmt.Sprintf("RunScriptOnContainer cleaning %s", remoteFileToClean))
+		localCleanScriptFile.WriteString(fmt.Sprintf(" %s", remoteFileToClean))
+	}
+	localCleanScriptFile.WriteString("\n")
+	localCleanScriptFile.Close()
+
+	os.Chmod(localCleanScript, os.ModePerm)
+
+	filesToTar[localCleanScript] = true
 
 	// Upload any files that are needed
 	if len(filesToTar) > 0 {
@@ -914,10 +955,11 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	for _, step := range containerDiagnostic.Spec.Steps {
 		if step.Command == "clean" {
 
+			cleanScript := filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, "clean.sh")
 			logger.Info(fmt.Sprintf("RunScriptOnContainer running 'clean' step"))
 
 			var stdout, stderr bytes.Buffer
-			err := r.ExecInContainer(pod, container, []string{"rm", "-rf", containerTmpFilesPrefix}, &stdout, &stderr, nil, nil)
+			err := r.ExecInContainer(pod, container, []string{cleanScript}, &stdout, &stderr, nil, nil)
 
 			if err != nil {
 				r.SetStatus(StatusError, fmt.Sprintf("Error running clean step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
