@@ -48,7 +48,7 @@ import (
 	"strconv"
 )
 
-const OperatorVersion = "0.170.20210928"
+const OperatorVersion = "0.171.20210928"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -445,16 +445,47 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	remoteFilesToClean[containerTmpFilesPrefix] = true
 
 	// Include some commonly useful Linux files, especially related to containers
-	remoteFilesToPackage["/proc/sys/kernel/core_pattern"] = true
 	remoteFilesToPackage["/proc/cpuinfo"] = true
 	remoteFilesToPackage["/proc/meminfo"] = true
 	remoteFilesToPackage["/proc/version"] = true
 	remoteFilesToPackage["/proc/loadavg"] = true
+
 	remoteFilesToPackage["/proc/pressure/cpu"] = true
 	remoteFilesToPackage["/proc/pressure/memory"] = true
-	remoteFilesToPackage["/sys/fs/cgroup/cpu/"] = true
-	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/"] = true
-	remoteFilesToPackage["/sys/fs/cgroup/memory/"] = true
+	remoteFilesToPackage["/proc/pressure/io"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuset/cpuset.memory_pressure"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpu.pressure"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory.pressure"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/io.pressure"] = true
+
+	remoteFilesToPackage["/proc/sys/kernel/core_pattern"] = true
+	remoteFilesToPackage["/proc/sys/vm/swappiness"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpu/cpu.cfs_period_us"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpu/cpus.cfs_quota_us"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpu/cpu.shares"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpu/cpu.stat"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.stat"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_all"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_percpu"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_percpu_sys"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_percpu_user"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_sys"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_user"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.failcnt"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.kmem.failcnt"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.kmem.limit_in_bytes"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.kmem.max_usage_in_bytes"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.kmem.tcp.failcnt"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.kmem.tcp.limit_in_bytes"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.kmem.tcp.max_usage_in_bytes"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.kmem.tcp.usage_in_bytes"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.limit_in_bytes"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.max_usage_in_bytes"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.soft_limit_in_bytes"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.stat"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.swappiness"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.usage_in_bytes"] = true
 
 	filesToTar := make(map[string]bool)
 
@@ -793,7 +824,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	}
 	localZipScriptFile.WriteString("\n")
 
-	// Some files might not exist but we don't want to fail because of that, so just return true
+	// Some files (e.g. in /proc) might not exist or we don't have permission but we don't want to fail because of that, so just return true
 	localZipScriptFile.WriteString("exit 0\n")
 
 	localZipScriptFile.Close()
