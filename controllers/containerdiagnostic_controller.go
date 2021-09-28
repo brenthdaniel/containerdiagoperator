@@ -52,8 +52,8 @@ const OperatorVersion = "0.174.20210928"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
-// This is because the ld-linux in the image may not match what this binaries needs (such as glibc),
-// So we need to use the ld-linux used by the containerdiagsmall image.
+// This is because the ld-linux in the image may not match what the binaries need (e.g. specific glibc),
+// So we need to use the ld-linux used by the containerdiagsmall image (see GetExecutionCommand).
 // Thus we have to launch with an explicit call to ld-linux.
 // See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
 const UseLdLinuxDirect = true
