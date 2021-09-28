@@ -466,10 +466,12 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	remoteFilesToPackage["/proc/sys/kernel/core_pattern"] = true
 	remoteFilesToPackage["/proc/sys/vm/swappiness"] = true
+
 	remoteFilesToPackage["/sys/fs/cgroup/cpu/cpu.cfs_period_us"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/cpu/cpu.cfs_quota_us"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/cpu/cpu.shares"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/cpu/cpu.stat"] = true
+
 	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.stat"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_all"] = true
@@ -478,6 +480,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_percpu_user"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_sys"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/cpuacct.usage_user"] = true
+
+	remoteFilesToPackage["/sys/fs/cgroup/cpuset/cpuset.cpus"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuset/cpuset.effective_cpus"] = true
+
 	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.failcnt"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.kmem.failcnt"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/memory/memory.kmem.limit_in_bytes"] = true
