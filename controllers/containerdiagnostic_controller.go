@@ -43,11 +43,12 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/tools/remotecommand"
 
-	"github.com/google/uuid"
+	"math/rand"
 	"path/filepath"
+	"strconv"
 )
 
-const OperatorVersion = "0.166.20210928"
+const OperatorVersion = "0.169.20210928"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -240,7 +241,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 	// Create a permanent directory for this run
 	// user is 'nobody' so /tmp is really the only place
-	uuid := uuid.New().String()
+	uuid := GetUniqueIdentifier()
 	localPermanentDirectory := filepath.Join("/tmp/containerdiagoutput", uuid)
 	err := os.MkdirAll(localPermanentDirectory, os.ModePerm)
 	if err != nil {
@@ -394,12 +395,24 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnPod(ctx context.Context, req 
 	}
 }
 
+func GetUniqueIdentifier() string {
+	// We don't use a UUID because it contains letters and
+	// that may accidentally contain a command such as "df"
+	// which is then incorrectly replaced again when building
+	// some ld-linux command execution lines
+	// import "github.com/google/uuid"
+	// uuid.New().String()
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return "tmp" + strconv.FormatInt(r.Int63(), 10)
+}
+
 func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, contextTracker *ContextTracker) {
 	logger.Info(fmt.Sprintf("RunScriptOnContainer pod: %s, container: %s", pod.Name, container.Name))
 
 	contextTracker.visited++
 
-	uuid := uuid.New().String()
+	uuid := GetUniqueIdentifier()
 
 	logger.Info(fmt.Sprintf("RunScriptOnContainer UUID = %s", uuid))
 
@@ -430,6 +443,16 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	remoteFilesToPackage := make(map[string]bool)
 	remoteFilesToClean := make(map[string]bool)
 	remoteFilesToClean[containerTmpFilesPrefix] = true
+
+	// Include some commonly useful Linux files, especially related to containers
+	remoteFilesToPackage["/proc/sys/kernel/core_pattern"] = true
+	remoteFilesToPackage["/proc/cpuinfo"] = true
+	remoteFilesToPackage["/proc/meminfo"] = true
+	remoteFilesToPackage["/proc/pressure/cpu"] = true
+	remoteFilesToPackage["/proc/pressure/memory"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpu/"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/cpuacct/"] = true
+	remoteFilesToPackage["/sys/fs/cgroup/memory/"] = true
 
 	filesToTar := make(map[string]bool)
 
@@ -520,18 +543,12 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 						// a shabang line, so add that in
 						localScriptFile.WriteString("#!/bin/sh\n")
 
-						// Really mysterious, unsolved issue where if we aren't logging these verbose statements
-						// then sometimes the resulting script has overlapping unexpected strings which cause
-						// execution failure. The issue is non-deterministic and doesn't seem to be related
-						// to ReplaceAll as that should be non-overlapping, so for now just log in verbose mode.
-						fileProcessingLogLevel := 0
-
 						for sourceScriptFileScanner.Scan() {
 							line := sourceScriptFileScanner.Text()
 
 							if !strings.Contains(line, "$(tput") {
 								if UseLdLinuxDirect {
-									logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer processing %s line: %s", command, line))
+									logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer processing %s line: %s", command, line))
 
 									if !strings.HasPrefix(line, "#") && !strings.Contains(line, "FILES_STRING=") && !strings.Contains(line, "TEMP_STRING=") {
 
@@ -581,15 +598,15 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 										for _, replaceCommand := range replacements {
 											if replaceCommand == "tar" && strings.Contains(line, ".tar") {
 											} else {
-												logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer before replacing %s in line: %s", replaceCommand, line))
+												logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer before replacing %s in line: %s", replaceCommand, line))
 												line = strings.ReplaceAll(line, replaceCommand, GetExecutionCommand(containerTmpFilesPrefix, replaceCommand, ""))
-												logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer after replacing %s in line: %s", replaceCommand, line))
+												logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer after replacing %s in line: %s", replaceCommand, line))
 											}
 										}
 
 										line = line + line_end
 									}
-									logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer writing line: %s", line))
+									logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer writing line: %s", line))
 								}
 								localScriptFile.WriteString(line + "\n")
 							}
