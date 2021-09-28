@@ -48,7 +48,7 @@ import (
 	"strconv"
 )
 
-const OperatorVersion = "0.171.20210928"
+const OperatorVersion = "0.172.20210928"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -449,6 +449,12 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	remoteFilesToPackage["/proc/meminfo"] = true
 	remoteFilesToPackage["/proc/version"] = true
 	remoteFilesToPackage["/proc/loadavg"] = true
+
+	remoteFilesToPackage["/etc/hostname"] = true
+	remoteFilesToPackage["/etc/os-release"] = true
+	remoteFilesToPackage["/etc/system-release"] = true
+	remoteFilesToPackage["/etc/system-release-cpe"] = true
+	remoteFilesToPackage["/etc/redhat-release"] = true
 
 	remoteFilesToPackage["/proc/pressure/cpu"] = true
 	remoteFilesToPackage["/proc/pressure/memory"] = true
