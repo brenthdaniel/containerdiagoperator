@@ -48,7 +48,7 @@ import (
 	"strconv"
 )
 
-const OperatorVersion = "0.174.20210928"
+const OperatorVersion = "0.175.20210928"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -120,7 +120,7 @@ type ContextTracker struct {
 func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	logger.Info("ContainerDiagnosticReconciler Reconcile called")
+	logger.Info(fmt.Sprintf("ContainerDiagnosticReconciler Reconcile called, version: %s", OperatorVersion))
 
 	containerDiagnostic := &diagnosticv1.ContainerDiagnostic{}
 	err := r.Get(ctx, req.NamespacedName, containerDiagnostic)
