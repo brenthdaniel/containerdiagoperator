@@ -47,7 +47,17 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.158.20210927"
+const OperatorVersion = "0.164.20210928"
+
+// Setting this to false doesn't work because of errors such as:
+//   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
+// This is because the ld-linux in the image may not match what this binaries needs (such as glibc),
+// So we need to use the ld-linux used by the containerdiagsmall image.
+// Thus we have to launch with an explicit call to ld-linux.
+// See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
+const UseLdLinuxDirect = true
+
+const Debug = true
 
 const ResultProcessing = "Processing..."
 
@@ -269,18 +279,18 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 	logger.Info("CommandScript: walking " + localPermanentDirectory)
 
-	// Next, let's walk our perm dir and unzip anything in place
-	var zips []string = []string{}
+	// Next, let's walk our perm dir and uncompress anything in place
+	var filesToUncompress []string = []string{}
 
 	err = filepath.Walk(localPermanentDirectory,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			if strings.HasSuffix(info.Name(), "zip") {
+			if strings.HasSuffix(info.Name(), "zip") || strings.HasSuffix(info.Name(), "tar") || strings.HasSuffix(info.Name(), "tar.gz") {
 				// path is the absolute path since we call Walk with an absolute path
 				// https://pkg.go.dev/path/filepath#WalkFunc
-				zips = append(zips, path)
+				filesToUncompress = append(filesToUncompress, path)
 			}
 			return nil
 		})
@@ -289,21 +299,35 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 		return ctrl.Result{}, err
 	}
 
-	logger.Info("CommandScript: processing zips")
+	logger.Info("CommandScript: uncompressing files")
 
-	for _, zipFile := range zips {
-		logger.Info(fmt.Sprintf("Unzipping %s", zipFile))
+	for _, fileToUncompress := range filesToUncompress {
+		logger.Info(fmt.Sprintf("Uncompressing %s", fileToUncompress))
 
-		outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "unzip", zipFile, "-d", filepath.Dir(zipFile))
+		var command string
+		var arguments []string
+
+		if strings.HasSuffix(fileToUncompress, "zip") {
+			command = "unzip"
+			arguments = []string{fileToUncompress, "-d", filepath.Dir(fileToUncompress)}
+		} else if strings.HasSuffix(fileToUncompress, "tar") {
+			command = "tar"
+			arguments = []string{"-C", filepath.Dir(fileToUncompress), "-xvf", fileToUncompress}
+		} else if strings.HasSuffix(fileToUncompress, "tar.gz") {
+			command = "tar"
+			arguments = []string{"-C", filepath.Dir(fileToUncompress), "-xzvf", fileToUncompress}
+		}
+
+		outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, command, arguments...)
 		var outputStr string = string(outputBytes[:])
 		if err != nil {
-			r.SetStatus(StatusError, fmt.Sprintf("Could not unzip %s: %+v %s", zipFile, err, outputStr), containerDiagnostic, logger)
+			r.SetStatus(StatusError, fmt.Sprintf("Could not uncompress %s: %+v %s", fileToUncompress, err, outputStr), containerDiagnostic, logger)
 			return ctrl.Result{}, err
 		}
 
-		logger.V(1).Info(fmt.Sprintf("CommandScript unzip output: %v", outputStr))
+		logger.V(1).Info(fmt.Sprintf("CommandScript uncompress output: %v", outputStr))
 
-		os.Remove(zipFile)
+		os.Remove(fileToUncompress)
 	}
 
 	logger.Info("CommandScript: creating final zip")
@@ -397,6 +421,9 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	// Now loop through the steps to figure out all the files we'll need to upload
 	localTarFile := filepath.Join(localScratchSpaceDirectory, "files.tar")
+	remoteFilesToPackage := make(map[string]bool)
+	remoteFilesToClean := make(map[string]bool)
+	remoteFilesToClean[containerTmpFilesPrefix] = true
 
 	filesToTar := make(map[string]bool)
 
@@ -496,66 +523,68 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 						for sourceScriptFileScanner.Scan() {
 							line := sourceScriptFileScanner.Text()
 
-							logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer processing %s line: %s", command, line))
-
 							if !strings.Contains(line, "$(tput") {
-								if !strings.HasPrefix(line, "#") && !strings.Contains(line, "FILES_STRING=") && !strings.Contains(line, "TEMP_STRING=") {
+								if UseLdLinuxDirect {
+									logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer processing %s line: %s", command, line))
 
-									line = strings.ReplaceAll(line, "MustGather>>", "MustGather:")
+									if !strings.HasPrefix(line, "#") && !strings.Contains(line, "FILES_STRING=") && !strings.Contains(line, "TEMP_STRING=") {
 
-									i := strings.Index(line, ">")
-									line_end := ""
-									if i != -1 {
-										line_end = line[i:]
-										line = line[:i]
-									} else {
-										i := strings.Index(line, "#")
+										line = strings.ReplaceAll(line, "MustGather>>", "MustGather:")
+
+										i := strings.Index(line, ">")
+										line_end := ""
 										if i != -1 {
 											line_end = line[i:]
 											line = line[:i]
+										} else {
+											i := strings.Index(line, "#")
+											if i != -1 {
+												line_end = line[i:]
+												line = line[:i]
+											}
 										}
-									}
 
-									replacements := []string{
-										"echo",
-										"date",
-										"tee",
-										"rm",
-										"sleep",
-										"whoami",
-										"netstat",
-										"top",
-										"expr",
-										"vmstat",
-										"ps",
-										"kill",
-										"dmesg",
-										"df",
-										"gzip",
-										"tput",
-										"tar",
-									}
-
-									if strings.Contains(line, "echo $(date)") && strings.Contains(line, "\"MustGather") {
-										replacements = []string{
+										replacements := []string{
 											"echo",
 											"date",
 											"tee",
+											"rm",
+											"sleep",
+											"whoami",
+											"netstat",
+											"top",
+											"expr",
+											"vmstat",
+											"ps",
+											"kill",
+											"dmesg",
+											"df",
+											"gzip",
+											"tput",
+											"tar",
 										}
-									}
 
-									for _, replaceCommand := range replacements {
-										if replaceCommand == "tar" && strings.Contains(line, ".tar") {
-										} else {
-											logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer before replacing %s in line: %s", replaceCommand, line))
-											line = strings.ReplaceAll(line, replaceCommand, GetExecutionCommand(containerTmpFilesPrefix, replaceCommand, ""))
-											logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer after replacing %s in line: %s", replaceCommand, line))
+										if strings.Contains(line, "echo $(date)") && strings.Contains(line, "\"MustGather") {
+											replacements = []string{
+												"echo",
+												"date",
+												"tee",
+											}
 										}
-									}
 
-									line = line + line_end
+										for _, replaceCommand := range replacements {
+											if replaceCommand == "tar" && strings.Contains(line, ".tar") {
+											} else {
+												logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer before replacing %s in line: %s", replaceCommand, line))
+												line = strings.ReplaceAll(line, replaceCommand, GetExecutionCommand(containerTmpFilesPrefix, replaceCommand, ""))
+												logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer after replacing %s in line: %s", replaceCommand, line))
+											}
+										}
+
+										line = line + line_end
+									}
+									logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer writing line: %s", line))
 								}
-								logger.V(fileProcessingLogLevel).Info(fmt.Sprintf("RunScriptOnContainer writing line: %s", line))
 								localScriptFile.WriteString(line + "\n")
 							}
 						}
@@ -568,6 +597,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 						// Now that the local file is written, add it to the files to transfer over:
 						filesToTar[localScript] = true
+
+						if Debug {
+							remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, "linperf.sh")] = true
+						}
 
 					} else {
 
@@ -587,12 +620,6 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		}
 	}
 
-	remoteFilesToPackage := make(map[string]bool)
-
-	remoteFilesToClean := make(map[string]bool)
-
-	remoteFilesToClean[containerTmpFilesPrefix] = true
-
 	// Create the execute script(s)
 	for stepIndex, step := range containerDiagnostic.Spec.Steps {
 		if step.Command == "execute" {
@@ -610,7 +637,12 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 			remoteFilesToPackage[remoteOutputFile] = true
 
-			localExecuteScript := filepath.Join(localScratchSpaceDirectory, fmt.Sprintf("execute_%d.sh", (stepIndex+1)))
+			executionScriptName := fmt.Sprintf("execute_%d.sh", (stepIndex + 1))
+			localExecuteScript := filepath.Join(localScratchSpaceDirectory, executionScriptName)
+
+			if Debug {
+				remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, executionScriptName)] = true
+			}
 
 			localExecuteFile, err := os.OpenFile(localExecuteScript, os.O_CREATE|os.O_WRONLY, os.ModePerm)
 
@@ -628,6 +660,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 			// Change directory to the temp directory in case any command needs to use the current working directory for scratch files
 			localExecuteFile.WriteString(fmt.Sprintf("cd %s\n", containerTmpFilesPrefix))
+
+			if !UseLdLinuxDirect {
+				AddDirectCallEnvars(localExecuteFile, containerTmpFilesPrefix)
+			}
 
 			// Echo outputfile directly to stdout without redirecting to the output file because a user executing this script wants to know where the output goes
 			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"Writing output to %s\"", remoteOutputFile), false, remoteOutputFile)
@@ -721,6 +757,9 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	}
 
 	localZipScriptFile.WriteString("#!/bin/sh\n")
+	if !UseLdLinuxDirect {
+		AddDirectCallEnvars(localZipScriptFile, containerTmpFilesPrefix)
+	}
 	localZipScriptFile.WriteString(fmt.Sprintf("%s", GetExecutionCommand(containerTmpFilesPrefix, "zip", "-r")))
 	localZipScriptFile.WriteString(fmt.Sprintf(" %s", remoteZipFile))
 	for remoteFileToPackage := range remoteFilesToPackage {
@@ -733,6 +772,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	os.Chmod(localZipScript, os.ModePerm)
 
 	filesToTar[localZipScript] = true
+
+	if Debug {
+		remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, "zip.sh")] = true
+	}
 
 	// Create the clean script
 	localCleanScript := filepath.Join(localScratchSpaceDirectory, "clean.sh")
@@ -747,6 +790,9 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	}
 
 	localCleanScriptFile.WriteString("#!/bin/sh\n")
+	if !UseLdLinuxDirect {
+		AddDirectCallEnvars(localCleanScriptFile, containerTmpFilesPrefix)
+	}
 	localCleanScriptFile.WriteString(fmt.Sprintf("%s", GetExecutionCommand(containerTmpFilesPrefix, "rm", "-rf")))
 	for remoteFileToClean := range remoteFilesToClean {
 		logger.Info(fmt.Sprintf("RunScriptOnContainer cleaning %s", remoteFileToClean))
@@ -758,6 +804,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	os.Chmod(localCleanScript, os.ModePerm)
 
 	filesToTar[localCleanScript] = true
+
+	if Debug {
+		remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, "clean.sh")] = true
+	}
 
 	// Upload any files that are needed
 	if len(filesToTar) > 0 {
@@ -997,7 +1047,6 @@ func CopyFile(src string, dest string) error {
 }
 
 func WriteExecutionLine(fileWriter *os.File, containerTmpFilesPrefix string, command string, arguments string, redirectOutput bool, outputFile string) {
-	// See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
 	var redirectStr string = ""
 	if redirectOutput {
 		redirectStr = fmt.Sprintf(">> %s 2>&1", outputFile)
@@ -1007,11 +1056,21 @@ func WriteExecutionLine(fileWriter *os.File, containerTmpFilesPrefix string, com
 
 func GetExecutionCommand(containerTmpFilesPrefix string, command string, arguments string) string {
 	// See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
-	result := fmt.Sprintf("%s --inhibit-cache --library-path %s %s", filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", "bin", command))
+	var result string
+	if UseLdLinuxDirect {
+		result = fmt.Sprintf("%s --inhibit-cache --library-path %s %s", filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", "bin", command))
+	} else {
+		result = command
+	}
 	if len(arguments) > 0 {
 		result += " " + arguments
 	}
 	return result
+}
+
+func AddDirectCallEnvars(localFile *os.File, containerTmpFilesPrefix string) {
+	localFile.WriteString(fmt.Sprintf("export PATH=%s\n", filepath.Join(containerTmpFilesPrefix, "usr", "bin")))
+	localFile.WriteString(fmt.Sprintf("export LD_LIBRARY_PATH=%s\n", filepath.Join(containerTmpFilesPrefix, "lib64")))
 }
 
 func (r *ContainerDiagnosticReconciler) ProcessInstallCommand(fullCommand string, filesToTar map[string]bool, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) bool {

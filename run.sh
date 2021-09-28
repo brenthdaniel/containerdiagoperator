@@ -7,7 +7,7 @@ TARGETCONTAINER="${TARGETCONTAINER}"
 TARGETNAMESPACE="${TARGETNAMESPACE}"
 
 if [ "${TARGETCONTAINER}" = "" ]; then
-  /bin/echo -n "Target container name: "
+  /bin/echo -n "Target container name (TARGETCONTAINER): "
   read TARGETCONTAINER
   if [ "${TARGETCONTAINER}" = "" ]; then
     echo "Target container name required."
@@ -16,7 +16,7 @@ if [ "${TARGETCONTAINER}" = "" ]; then
 fi
 
 if [ "${TARGETNAMESPACE}" = "" ]; then
-  /bin/echo -n "Target container's namespace': "
+  /bin/echo -n "Target container's namespace (TARGETNAMESPACE): "
   read TARGETNAMESPACE
   if [ "${TARGETNAMESPACE}" = "" ]; then
     echo "Target container's namespace required."
@@ -30,8 +30,8 @@ make docker-build docker-push IMG="kgibm/containerdiagoperator:$(awk '/const Ope
   kubectl get pods --namespace=containerdiagoperator-system && \
   sleep 30 && \
   kubectl get pods --namespace=containerdiagoperator-system && \
-  printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' "$(printf '[{"kind": "Pod", "name": "%s", "namespace": "%s"}]' "${TARGETCONTAINER}" "${TARGETNAMESPACE}")" '[{"command": "install", "arguments": ["linperf.sh"]}, {"command": "execute", "arguments": ["linperf.sh"]}, {"command": "package", "arguments": ["/output/javacore*", "/logs/", "/config/"]} , {"command": "clean", "arguments": ["/output/javacore*"]}]' | kubectl create -f - && \
-  sleep 20 && \
+  printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' "$(printf '[{"kind": "Pod", "name": "%s", "namespace": "%s"}]' "${TARGETCONTAINER}" "${TARGETNAMESPACE}")" '[{"command": "install", "arguments": ["linperf.sh"]}, {"command": "execute", "arguments": ["linperf.sh"]}, {"command": "package", "arguments": ["/output/javacore*", "/logs/", "/config/"]}, {"command": "clean", "arguments": ["/output/javacore*"]}]' | kubectl create -f - && \
+  sleep 250 && \
   kubectl describe ContainerDiagnostic diag1 --namespace=containerdiagoperator-system && \
   echo "" && \
   kubectl logs --container=manager --namespace=containerdiagoperator-system $(kubectl get pods --namespace=containerdiagoperator-system | awk '/containerdiagoperator/ {print $1;}') && \
