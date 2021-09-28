@@ -47,7 +47,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.165.20210928"
+const OperatorVersion = "0.166.20210928"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -56,8 +56,6 @@ const OperatorVersion = "0.165.20210928"
 // Thus we have to launch with an explicit call to ld-linux.
 // See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
 const UseLdLinuxDirect = true
-
-const Debug = true
 
 const ResultProcessing = "Processing..."
 
@@ -606,7 +604,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 						// Now that the local file is written, add it to the files to transfer over:
 						filesToTar[localScript] = true
 
-						if Debug {
+						if containerDiagnostic.Spec.Debug {
 							remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, "linperf.sh")] = true
 						}
 
@@ -648,7 +646,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			executionScriptName := fmt.Sprintf("execute_%d.sh", (stepIndex + 1))
 			localExecuteScript := filepath.Join(localScratchSpaceDirectory, executionScriptName)
 
-			if Debug {
+			if containerDiagnostic.Spec.Debug {
 				remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, executionScriptName)] = true
 			}
 
@@ -781,7 +779,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	filesToTar[localZipScript] = true
 
-	if Debug {
+	if containerDiagnostic.Spec.Debug {
 		remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, "zip.sh")] = true
 	}
 
@@ -813,7 +811,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	filesToTar[localCleanScript] = true
 
-	if Debug {
+	if containerDiagnostic.Spec.Debug {
 		remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, "clean.sh")] = true
 	}
 

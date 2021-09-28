@@ -61,6 +61,11 @@ spec:
                 - version
                 - script
                 type: string
+              debug:
+                default: false
+                description: Optional. Whether or not to debug the operator itself.
+                  Defaults to false.
+                type: boolean
               directory:
                 default: /tmp/containerdiag/
                 description: Optional. Target directory for diagnostic files. Must

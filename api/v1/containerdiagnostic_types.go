@@ -63,6 +63,11 @@ type ContainerDiagnosticSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=true
 	UseUUID bool `json:"useuuid,omitempty"`
+
+	// Optional. Whether or not to debug the operator itself. Defaults to false.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	Debug bool `json:"debug,omitempty"`
 }
 
 // ContainerDiagnosticStatus defines the observed state of ContainerDiagnostic
