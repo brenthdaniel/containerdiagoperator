@@ -2,7 +2,7 @@
 
 The goal of this operator is to automate running diagnostics on a container without restarting the container. This works by uploading diagnostic binaries (e.g. `top`) and their dependent shared libraries into a temporary folder in the container and then executing them. This is all packaged into an operator for ease-of-use. Note that [Kubernetes requires the existence of `tar` in the running container for this to work](https://github.com/kubernetes/kubernetes/issues/58512).
 
-While we welcome any [bug reports or suggestions](https://github.com/kgibm/containerdiagoperator/issues/new), this is not supported and is provided on an "as-is" basis without warranty of any kind. We may make updates if needed and as time permits.
+While we welcome any [bug reports or suggestions](https://github.com/kgibm/containerdiagoperator/issues/new), this is not supported and is provided on an "as-is" basis without warranty of any kind.
 
 ### ContainerDiagnostic custom resource
 
