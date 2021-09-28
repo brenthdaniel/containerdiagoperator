@@ -47,7 +47,7 @@ import (
 	"path/filepath"
 )
 
-const OperatorVersion = "0.164.20210928"
+const OperatorVersion = "0.165.20210928"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -279,55 +279,63 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 	logger.Info("CommandScript: walking " + localPermanentDirectory)
 
-	// Next, let's walk our perm dir and uncompress anything in place
-	var filesToUncompress []string = []string{}
+	checkForCompressedFiles := true
 
-	err = filepath.Walk(localPermanentDirectory,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if strings.HasSuffix(info.Name(), "zip") || strings.HasSuffix(info.Name(), "tar") || strings.HasSuffix(info.Name(), "tar.gz") {
-				// path is the absolute path since we call Walk with an absolute path
-				// https://pkg.go.dev/path/filepath#WalkFunc
-				filesToUncompress = append(filesToUncompress, path)
-			}
-			return nil
-		})
-	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Could not walk local permanent output space in %s: %+v", localPermanentDirectory, err), containerDiagnostic, logger)
-		return ctrl.Result{}, err
-	}
+	for checkForCompressedFiles {
+		// Walk our perm dir and uncompress anything in place
+		var filesToUncompress []string = []string{}
 
-	logger.Info("CommandScript: uncompressing files")
-
-	for _, fileToUncompress := range filesToUncompress {
-		logger.Info(fmt.Sprintf("Uncompressing %s", fileToUncompress))
-
-		var command string
-		var arguments []string
-
-		if strings.HasSuffix(fileToUncompress, "zip") {
-			command = "unzip"
-			arguments = []string{fileToUncompress, "-d", filepath.Dir(fileToUncompress)}
-		} else if strings.HasSuffix(fileToUncompress, "tar") {
-			command = "tar"
-			arguments = []string{"-C", filepath.Dir(fileToUncompress), "-xvf", fileToUncompress}
-		} else if strings.HasSuffix(fileToUncompress, "tar.gz") {
-			command = "tar"
-			arguments = []string{"-C", filepath.Dir(fileToUncompress), "-xzvf", fileToUncompress}
-		}
-
-		outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, command, arguments...)
-		var outputStr string = string(outputBytes[:])
+		err = filepath.Walk(localPermanentDirectory,
+			func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if strings.HasSuffix(info.Name(), "zip") || strings.HasSuffix(info.Name(), "tar") || strings.HasSuffix(info.Name(), "tar.gz") {
+					// path is the absolute path since we call Walk with an absolute path
+					// https://pkg.go.dev/path/filepath#WalkFunc
+					filesToUncompress = append(filesToUncompress, path)
+				}
+				return nil
+			})
 		if err != nil {
-			r.SetStatus(StatusError, fmt.Sprintf("Could not uncompress %s: %+v %s", fileToUncompress, err, outputStr), containerDiagnostic, logger)
+			r.SetStatus(StatusError, fmt.Sprintf("Could not walk local permanent output space in %s: %+v", localPermanentDirectory, err), containerDiagnostic, logger)
 			return ctrl.Result{}, err
 		}
 
-		logger.V(1).Info(fmt.Sprintf("CommandScript uncompress output: %v", outputStr))
+		if len(filesToUncompress) == 0 {
+			break
+		}
 
-		os.Remove(fileToUncompress)
+		logger.Info(fmt.Sprintf("CommandScript: uncompressing files: %+v", filesToUncompress))
+
+		for _, fileToUncompress := range filesToUncompress {
+			logger.Info(fmt.Sprintf("Uncompressing %s", fileToUncompress))
+
+			var command string
+			var arguments []string
+
+			if strings.HasSuffix(fileToUncompress, "zip") {
+				command = "unzip"
+				arguments = []string{fileToUncompress, "-d", filepath.Dir(fileToUncompress)}
+			} else if strings.HasSuffix(fileToUncompress, "tar") {
+				command = "tar"
+				arguments = []string{"-C", filepath.Dir(fileToUncompress), "-xvf", fileToUncompress}
+			} else if strings.HasSuffix(fileToUncompress, "tar.gz") {
+				command = "tar"
+				arguments = []string{"-C", filepath.Dir(fileToUncompress), "-xzvf", fileToUncompress}
+			}
+
+			outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, command, arguments...)
+			var outputStr string = string(outputBytes[:])
+			if err != nil {
+				r.SetStatus(StatusError, fmt.Sprintf("Could not uncompress %s: %+v %s", fileToUncompress, err, outputStr), containerDiagnostic, logger)
+				return ctrl.Result{}, err
+			}
+
+			logger.V(1).Info(fmt.Sprintf("CommandScript uncompress output: %v", outputStr))
+
+			os.Remove(fileToUncompress)
+		}
 	}
 
 	logger.Info("CommandScript: creating final zip")
