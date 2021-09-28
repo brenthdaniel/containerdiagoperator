@@ -48,7 +48,7 @@ import (
 	"strconv"
 )
 
-const OperatorVersion = "0.169.20210928"
+const OperatorVersion = "0.170.20210928"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -448,6 +448,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	remoteFilesToPackage["/proc/sys/kernel/core_pattern"] = true
 	remoteFilesToPackage["/proc/cpuinfo"] = true
 	remoteFilesToPackage["/proc/meminfo"] = true
+	remoteFilesToPackage["/proc/version"] = true
+	remoteFilesToPackage["/proc/loadavg"] = true
 	remoteFilesToPackage["/proc/pressure/cpu"] = true
 	remoteFilesToPackage["/proc/pressure/memory"] = true
 	remoteFilesToPackage["/sys/fs/cgroup/cpu/"] = true
@@ -790,6 +792,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		localZipScriptFile.WriteString(fmt.Sprintf(" %s", remoteFileToPackage))
 	}
 	localZipScriptFile.WriteString("\n")
+
+	// Some files might not exist but we don't want to fail because of that, so just return true
+	localZipScriptFile.WriteString("exit 0\n")
+
 	localZipScriptFile.Close()
 
 	os.Chmod(localZipScript, os.ModePerm)
@@ -822,6 +828,10 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		localCleanScriptFile.WriteString(fmt.Sprintf(" %s", remoteFileToClean))
 	}
 	localCleanScriptFile.WriteString("\n")
+
+	// We don't want to fail if there are errors cleaning files
+	localCleanScriptFile.WriteString("exit 0\n")
+
 	localCleanScriptFile.Close()
 
 	os.Chmod(localCleanScript, os.ModePerm)
@@ -870,6 +880,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 		file.Close()
 
+		logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", tarStdout.String(), tarStderr.String()))
+
 		if err != nil {
 			r.SetStatus(StatusError, fmt.Sprintf("Error uploading tar file to pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
 
@@ -894,6 +906,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 			var stdout, stderr bytes.Buffer
 			err := r.ExecInContainer(pod, container, []string{remoteExecutionScript}, &stdout, &stderr, nil, nil)
+
+			logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", stdout.String(), stderr.String()))
 
 			if err != nil {
 				r.SetStatus(StatusError, fmt.Sprintf("Error running 'execute' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -924,6 +938,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	logger.Info(fmt.Sprintf("RunScriptOnContainer zipping up remote files: %s", zipScript))
 
 	err = r.ExecInContainer(pod, container, []string{zipScript}, &zipStdout, &zipStderr, nil, nil)
+	logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", zipStdout.String(), zipStderr.String()))
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error running 'zip' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -958,6 +973,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 	fileWriter.Flush()
 	file.Close()
+
+	logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stderr: %s\n", tarStderr.String()))
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error downloading %s from pod: %s container: %s error: %+v for %v", remoteZipFile, pod.Name, container.Name, err, args), containerDiagnostic, logger)
@@ -1033,6 +1050,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 			var stdout, stderr bytes.Buffer
 			err := r.ExecInContainer(pod, container, []string{cleanScript}, &stdout, &stderr, nil, nil)
+
+			logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", stdout.String(), stderr.String()))
 
 			if err != nil {
 				r.SetStatus(StatusError, fmt.Sprintf("Error running clean step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -1179,6 +1198,8 @@ func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context
 	var stdout, stderr bytes.Buffer
 	err := r.ExecInContainer(pod, container, []string{"mkdir", "-p", containerTmpFilesPrefix}, &stdout, &stderr, nil, nil)
 
+	logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", stdout.String(), stderr.String()))
+
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error executing mkdir in container: %+v", err), containerDiagnostic, logger)
 
@@ -1186,8 +1207,6 @@ func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context
 		// only error, status will show as error; othewrise, as mixed
 		return "", false
 	}
-
-	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer results: stdout: %v stderr: %v", stdout.String(), stderr.String()))
 
 	return containerTmpFilesPrefix, true
 }
