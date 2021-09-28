@@ -12,5 +12,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: kgibm/containerdiagoperator
-  newTag: 0.174.20210928
+  newName: docker.io/kgibm/containerdiagoperator
+  newTag: 0.175.20210928
