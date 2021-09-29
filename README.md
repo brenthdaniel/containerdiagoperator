@@ -28,7 +28,7 @@ spec:
     - top
   - command: execute
     arguments:
-    - top -b -H -d 2 -n 2
+    - top -b -H -d 5 -n 6
   - command: clean
 ```
 
@@ -66,7 +66,7 @@ spec:
 
 ##### JSON Example (top -H)
 
-`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 2 -n 2"]}, {"command": "clean"}]' | kubectl create -f -`
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 5 -n 6"]}, {"command": "clean"}]' | kubectl create -f -`
 
 ##### JSON Example (Liberty linperf.sh)
 
@@ -213,7 +213,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
 1. Show operator logs. For example, change the pod name to the name displayed in the previous step:
    ```
-   $ kubectl logs --container=manager --namespace=containerdiagoperator-system containerdiagoperator-controller-manager-5c65d5b66-zc4v4
+   $ kubectl logs --container=manager --namespace=containerdiagoperator-system $(kubectl get pods --namespace=containerdiagoperator-system | awk '/containerdiagoperator/ {print $1;}')
    2021-06-23T16:40:15.930Z	INFO	controller-runtime.metrics	metrics server is starting to listen	{"addr": "127.0.0.1:8080"}
    2021-06-23T16:40:15.931Z	INFO	setup	starting manager 0.4.20210803
    ```
