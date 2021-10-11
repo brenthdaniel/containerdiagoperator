@@ -180,6 +180,8 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
    make generate
    ```
+    1. [General guidelines](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#define-the-api)
+    1. [kubebuilder validation](https://book.kubebuilder.io/reference/markers/crd-validation.html)
 1. If you updated [controller RBAC manifests](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#specify-permissions-and-generate-rbac-manifests), then:
    ```
    make manifests
@@ -227,13 +229,6 @@ To destroy the CRD and all CRs:
 ```
 make undeploy
 ```
-
-### Update Spec
-
-1. Update `api/v1/*_types.go`
-    1. [General guidelines](https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/#define-the-api)
-    1. [kubebuilder validation](https://book.kubebuilder.io/reference/markers/crd-validation.html)
-1. `make generate`
 
 ### Notes
 
