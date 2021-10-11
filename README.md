@@ -64,14 +64,6 @@ spec:
     - /output/javacore*
 ```
 
-##### JSON Example (top -H)
-
-`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 5 -n 6"]}, {"command": "clean"}]' | kubectl create -f -`
-
-##### JSON Example (Liberty linperf.sh)
-
-`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["linperf.sh"]}, {"command": "execute", "arguments": ["linperf.sh"]}, {"command": "package", "arguments": ["/output/javacore*", "/logs/", "/config/"]} , {"command": "clean", "arguments": ["/output/javacore*"]}]' | kubectl create -f -`
-
 #### Showing ContainerDiagnostic resources
 
 Get:
@@ -192,15 +184,27 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
    make manifests
    ```
-1. If needed, log into DockerHub:
+1. If you want to build without pushing:
    ```
-   docker login
+   make build
    ```
-1. Build and push to [DockerHub](https://hub.docker.com/r/kgibm/containerdiagoperator). For example:
+1. If using `podman` (e.g. through [CodeReady Containers](https://developers.redhat.com/products/codeready-containers/overview) with `crc start --cpus 4 --memory 12000 && eval $(crc podman-env)` or `podman machine start`):
+   ```
+   export CONTAINER_ENGINE=podman
+   ```
+1. If pushing to the [DockerHub registry](https://hub.docker.com/), log in:
+    1. If using `podman`:
+       ```
+       podman login docker.io
+       ```
+    1. If using `docker`:
+       ```
+       docker login
+       ```
+1. If pushing to the DockerHub registry, build and push to [docker.io/kgibm/containerdiagoperator](https://hub.docker.com/r/kgibm/containerdiagoperator):
    ```
    make docker-build docker-push IMG="docker.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
    ```
-    * If you want to build without pushing: `make build`
 1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context). For example:
    ```
    make deploy IMG="docker.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
@@ -211,7 +215,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    NAME                                                       READY   STATUS    RESTARTS   AGE
    containerdiagoperator-controller-manager-5c65d5b66-zc4v4   2/2     Running   0          22s
    ```
-1. Show operator logs. For example, change the pod name to the name displayed in the previous step:
+1. Show operator logs:
    ```
    $ kubectl logs --container=manager --namespace=containerdiagoperator-system $(kubectl get pods --namespace=containerdiagoperator-system | awk '/containerdiagoperator/ {print $1;}')
    2021-06-23T16:40:15.930Z	INFO	controller-runtime.metrics	metrics server is starting to listen	{"addr": "127.0.0.1:8080"}
@@ -258,3 +262,13 @@ make undeploy
       ```
       kubectl exec $(kubectl get pods --namespace=containerdiagoperator-system | awk '/containerdiagoperator/ {print $1;}') --namespace containerdiagoperator-system --container=manager -it -- sh
       ```
+
+## Appendix
+
+### JSON Example (top -H)
+
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 5 -n 6"]}, {"command": "clean"}]' | kubectl create -f -`
+
+### JSON Example (Liberty linperf.sh)
+
+`printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["linperf.sh"]}, {"command": "execute", "arguments": ["linperf.sh"]}, {"command": "package", "arguments": ["/output/javacore*", "/logs/", "/config/"]} , {"command": "clean", "arguments": ["/output/javacore*"]}]' | kubectl create -f -`
