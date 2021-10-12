@@ -48,7 +48,7 @@ import (
 	"strconv"
 )
 
-const OperatorVersion = "0.176.20211011"
+const OperatorVersion = "0.177.20211012"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
