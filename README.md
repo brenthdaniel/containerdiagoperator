@@ -212,7 +212,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
        ```
        ibmcloud login --sso -r us-east
        ```
-    1. If using `podman`, ensure `docker` doesn't exist and then creating a symlink to `podman`:
+    1. If using `podman`, ensure `docker` doesn't exist and then create a symlink to `podman`:
        ```
        ln -s $(which podman) $(dirname $(which podman))/docker
        ```
