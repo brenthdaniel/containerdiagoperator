@@ -208,9 +208,9 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
        make docker-build docker-push IMG="docker.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
        ```
 1. If pushing to the IBM Container Registry at `icr.io/containerdiag/containerdiagoperator`:
-    1. Log into IBM Cloud with [`ibmcloud`](https://cloud.ibm.com/docs/cli?topic=cli-getting-started) in the global `icr.io` region:
+    1. Log into IBM Cloud with [`ibmcloud`](https://cloud.ibm.com/docs/cli?topic=cli-getting-started) in the `us-east` region:
        ```
-       ibmcloud login --sso
+       ibmcloud login --sso -r us-east
        ```
     1. If using `podman`, ensure `docker` doesn't exist and then creating a symlink to `podman`:
        ```
