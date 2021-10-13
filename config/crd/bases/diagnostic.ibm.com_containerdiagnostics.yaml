@@ -165,6 +165,16 @@ spec:
             properties:
               download:
                 type: string
+              downloadContainer:
+                type: string
+              downloadFileName:
+                type: string
+              downloadNamespace:
+                type: string
+              downloadPath:
+                type: string
+              downloadPod:
+                type: string
               log:
                 type: string
               result:

@@ -71,7 +71,7 @@ Get:
 ```
 $ kubectl get ContainerDiagnostic diag1 --namespace=containerdiagoperator-system
 NAME    COMMAND   STATUSMESSAGE   RESULT                                 DOWNLOAD
-diag1   script    success         Successfully finished on 1 container   kubectl cp containerdiagoperator-controller-manager-6dbd4fdb76-mrjgq:/tmp/containerdiagoutput/containerdiag_20210921_212621_601bca25-cd39-4f77-b7ab-522524433f83.zip containerdiag_20210921_212621_601bca25-cd39-4f77-b7ab-522524433f83.zip --container=manager --namespace=containerdiagoperator-system
+diag1   script    success         Successfully finished on 1 container   kubectl cp containerdiagoperator-controller-manager-6bbc6b4644-pk4s6:/tmp/containerdiagoutput/containerdiag_20211013_185845_tmp1687502014560622238.zip containerdiag_20211013_185845_tmp1687502014560622238.zip --container=manager --namespace=containerdiagoperator-system
 ```
 
 Describe:
@@ -79,22 +79,23 @@ Describe:
 ```
 $ kubectl describe ContainerDiagnostic diag1 --namespace=containerdiagoperator-system
 [...]
-Spec:
-  Command:  version
 Status:
-  Download:        kubectl cp containerdiagoperator-controller-manager-6dbd4fdb76-mrjgq:/tmp/containerdiagoutput/containerdiag_20210921_212621_601bca25-cd39-4f77-b7ab-522524433f83.zip containerdiag_20210921_212621_601bca25-cd39-4f77-b7ab-522524433f83.zip --container=manager --namespace=containerdiagoperator-system
-  Log:             
-  Result:          Successfully finished on 1 container
-  Status Code:     1
-  Status Message:  success
+  Download:            kubectl cp containerdiagoperator-controller-manager-6bbc6b4644-pk4s6:/tmp/containerdiagoutput/containerdiag_20211013_185845_tmp1687502014560622238.zip containerdiag_20211013_185845_tmp1687502014560622238.zip --container=manager --namespace=containerdiagoperator-system
+  Download Container:  manager
+  Download File Name:  containerdiag_20211013_185845_tmp1687502014560622238.zip
+  Download Namespace:  containerdiagoperator-system
+  Download Path:       /tmp/containerdiagoutput/containerdiag_20211013_185845_tmp1687502014560622238.zip
+  Download Pod:        containerdiagoperator-controller-manager-6bbc6b4644-pk4s6
+  Log:                 
+  Result:              Successfully finished on 1 container
+  Status Code:         2
+  Status Message:      success
 Events:
-  Type    Reason         Age   From                 Message
-  ----    ------         ----  ----                 -------
-  Normal  Informational  20s   containerdiagnostic  Started reconciling ContainerDiagnostic name: diag1, namespace: containerdiagoperator-system, command: script, status: uninitialized @ 2021-09-21T21:26:18.676
-  Normal  Informational  17s   containerdiagnostic  Status update (success): Successfully finished on 1 container @ 2021-09-21T21:26:21.746
-  Normal  Informational  17s   containerdiagnostic  Finished reconciling @ 2021-09-21T21:26:21.746
-  Normal  Informational  17s   containerdiagnostic  Started reconciling ContainerDiagnostic name: diag1, namespace: containerdiagoperator-system, command: script, status: success @ 2021-09-21T21:26:21.757
-  Normal  Informational  17s   containerdiagnostic  Finished reconciling @ 2021-09-21T21:26:21.757
+  Type    Reason         Age    From                 Message
+  ----    ------         ----   ----                 -------
+  Normal  Informational  2m27s  containerdiagnostic  Status update (processing): Started processing with version 0.185.20211013 @ 2021-10-13T18:58:16.413
+  Normal  Informational  118s   containerdiagnostic  Download: kubectl cp containerdiagoperator-controller-manager-6bbc6b4644-pk4s6:/tmp/containerdiagoutput/containerdiag_20211013_185845_tmp1687502014560622238.zip containerdiag_20211013_185845_tmp1687502014560622238.zip --container=manager --namespace=containerdiagoperator-system
+  Normal  Informational  118s   containerdiagnostic  Status update (success): Successfully finished on 1 container @ 2021-10-13T18:58:45.775
 ```
 
 #### Deleting ContainerDiagnostic resources

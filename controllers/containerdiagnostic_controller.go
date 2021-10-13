@@ -48,7 +48,7 @@ import (
 	"strconv"
 )
 
-const OperatorVersion = "0.184.20211013"
+const OperatorVersion = "0.185.20211013"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -374,7 +374,12 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 	containerName = strings.ReplaceAll(containerName, "\n", "")
 	containerName = strings.ReplaceAll(containerName, "\r", "")
 
-	containerDiagnostic.Status.Download = fmt.Sprintf("kubectl cp %s:%s %s --container=manager --namespace=containerdiagoperator-system", containerName, finalZip, filepath.Base(finalZip))
+	containerDiagnostic.Status.DownloadPath = finalZip
+	containerDiagnostic.Status.DownloadFileName = filepath.Base(finalZip)
+	containerDiagnostic.Status.DownloadPod = containerName
+	containerDiagnostic.Status.DownloadContainer = "manager"
+	containerDiagnostic.Status.DownloadNamespace = "containerdiagoperator-system"
+	containerDiagnostic.Status.Download = fmt.Sprintf("kubectl cp %s:%s %s --container=%s --namespace=%s", containerDiagnostic.Status.DownloadPod, containerDiagnostic.Status.DownloadPath, containerDiagnostic.Status.DownloadFileName, containerDiagnostic.Status.DownloadContainer, containerDiagnostic.Status.DownloadNamespace)
 
 	r.RecordEventInfo(fmt.Sprintf("Download: %s", containerDiagnostic.Status.Download), containerDiagnostic, logger)
 

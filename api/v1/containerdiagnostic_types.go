@@ -87,6 +87,21 @@ type ContainerDiagnosticStatus struct {
 
 	// +kubebuilder:validation:Optional
 	Download string `json:"download"`
+
+	// +kubebuilder:validation:Optional
+	DownloadPath string `json:"downloadPath"`
+
+	// +kubebuilder:validation:Optional
+	DownloadFileName string `json:"downloadFileName"`
+
+	// +kubebuilder:validation:Optional
+	DownloadContainer string `json:"downloadContainer"`
+
+	// +kubebuilder:validation:Optional
+	DownloadNamespace string `json:"downloadNamespace"`
+
+	// +kubebuilder:validation:Optional
+	DownloadPod string `json:"downloadPod"`
 }
 
 // ContainerDiagnostic is the Schema for the containerdiagnostics API
