@@ -50,7 +50,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const OperatorVersion = "0.188.20211013"
+const OperatorVersion = "0.189.20211013"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -195,7 +195,7 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 
 		// We make a quick transition from uninitialized to processing just so
 		// that we can show a processing status in the get
-		r.SetStatus(StatusProcessing, fmt.Sprintf("Started processing with version %s", OperatorVersion), containerDiagnostic, logger)
+		r.SetStatus(StatusProcessing, fmt.Sprintf("Started processing. Operator version %s", OperatorVersion), containerDiagnostic, logger)
 
 	} else if containerDiagnostic.Status.StatusCode == StatusProcessing.Value() {
 
@@ -236,6 +236,8 @@ func (r *ContainerDiagnosticReconciler) Finalize(logger logr.Logger, containerDi
 			logger.Info(fmt.Sprintf("Failed to delete %s: %v", containerDiagnostic.Status.DownloadPath, err))
 		}
 	}
+
+	r.RecordEventInfo(fmt.Sprintf("Finalized and deleted @ %s", CurrentTimeAsString()), containerDiagnostic, logger)
 
 	logger.Info("Successfully finalized")
 	return nil
