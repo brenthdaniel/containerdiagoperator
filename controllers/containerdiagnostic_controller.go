@@ -48,7 +48,7 @@ import (
 	"strconv"
 )
 
-const OperatorVersion = "0.178.20211013"
+const OperatorVersion = "0.180.20211013"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -64,6 +64,7 @@ type StatusEnum int
 
 const (
 	StatusUninitialized StatusEnum = iota
+	StatusProcessing
 	StatusSuccess
 	StatusError
 	StatusMixed
@@ -71,6 +72,7 @@ const (
 
 var StatusEnumNames = []string{
 	"uninitialized",
+	"processing",
 	"success",
 	"error",
 	"mixed",
@@ -137,7 +139,10 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, err
 	}
 
-	r.RecordEventInfo(fmt.Sprintf("Started reconciling ContainerDiagnostic name: %s, namespace: %s, command: %s, status: %s @ %s", containerDiagnostic.Name, containerDiagnostic.Namespace, containerDiagnostic.Spec.Command, StatusEnum(containerDiagnostic.Status.StatusCode).ToString(), CurrentTimeAsString()), containerDiagnostic, logger)
+	// Only create a started event for certain states
+	if containerDiagnostic.Status.StatusCode == StatusProcessing.Value() {
+		r.RecordEventInfo(fmt.Sprintf("Started reconciling ContainerDiagnostic name: %s, namespace: %s, command: %s, status: %s @ %s", containerDiagnostic.Name, containerDiagnostic.Namespace, containerDiagnostic.Spec.Command, StatusEnum(containerDiagnostic.Status.StatusCode).ToString(), CurrentTimeAsString()), containerDiagnostic, logger)
+	}
 
 	logger.Info(fmt.Sprintf("Details of the ContainerDiagnostic: %+v", containerDiagnostic))
 
@@ -148,12 +153,20 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 	err = nil
 
 	if containerDiagnostic.Status.StatusCode == StatusUninitialized.Value() {
+
+		// We make a quick transition from uninitialized to processing just so
+		// that we can show a processing status in the get
+		r.SetStatus(StatusProcessing, fmt.Sprintf("Started processing"), containerDiagnostic, logger)
+
+	} else if containerDiagnostic.Status.StatusCode == StatusProcessing.Value() {
+
 		switch containerDiagnostic.Spec.Command {
 		case "version":
 			result, err = r.CommandVersion(ctx, req, containerDiagnostic, logger)
 		case "script":
 			result, err = r.CommandScript(ctx, req, containerDiagnostic, logger)
 		}
+
 	}
 
 	return r.ProcessResult(result, err, ctx, containerDiagnostic, logger)
@@ -186,7 +199,7 @@ func CurrentTimeAsString() string {
 
 func (r *ContainerDiagnosticReconciler) ProcessResult(result ctrl.Result, err error, ctx context.Context, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
 	if err == nil {
-		r.RecordEventInfo(fmt.Sprintf("Finished reconciling @ %s", CurrentTimeAsString()), containerDiagnostic, logger)
+		logger.Info(fmt.Sprintf("Finished reconciling @ %s", CurrentTimeAsString()))
 	} else {
 		r.SetStatus(StatusError, fmt.Sprintf("Error: %s", err.Error()), containerDiagnostic, logger)
 		r.RecordEventWarning(err, fmt.Sprintf("Finished reconciling with error %v @ %s", err, CurrentTimeAsString()), containerDiagnostic, logger)
@@ -365,6 +378,8 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 	containerName = strings.ReplaceAll(containerName, "\r", "")
 
 	containerDiagnostic.Status.Download = fmt.Sprintf("kubectl cp %s:%s %s --container=manager --namespace=containerdiagoperator-system", containerName, finalZip, filepath.Base(finalZip))
+
+	r.RecordEventInfo(fmt.Sprintf("Download: %s", containerDiagnostic.Status.Download), containerDiagnostic, logger)
 
 	if contextTracker.visited > 0 {
 		if contextTracker.successes > 0 {
