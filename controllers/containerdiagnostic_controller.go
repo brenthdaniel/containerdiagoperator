@@ -46,9 +46,11 @@ import (
 	"math/rand"
 	"path/filepath"
 	"strconv"
+
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const OperatorVersion = "0.185.20211013"
+const OperatorVersion = "0.188.20211013"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -59,6 +61,8 @@ const OperatorVersion = "0.185.20211013"
 const UseLdLinuxDirect = true
 
 const ResultProcessing = "Processing..."
+
+const FinalizerName = "diagnostic.ibm.com/finalizer"
 
 type StatusEnum int
 
@@ -143,6 +147,44 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 
 	logger.Info(fmt.Sprintf("Details of the ContainerDiagnostic: %+v", containerDiagnostic))
 
+	// Check if we are finalizing
+	isMarkedToBeDeleted := containerDiagnostic.GetDeletionTimestamp() != nil
+	if isMarkedToBeDeleted {
+		logger.Info(fmt.Sprintf("Marked to be deleted"))
+		if controllerutil.ContainsFinalizer(containerDiagnostic, FinalizerName) {
+			// Run finalization logic. If the
+			// finalization logic fails, don't remove the finalizer so
+			// that we can retry during the next reconciliation.
+			if err := r.Finalize(logger, containerDiagnostic); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			// Remove finalizer. Once all finalizers have been
+			// removed, the object will be deleted.
+			controllerutil.RemoveFinalizer(containerDiagnostic, FinalizerName)
+			err := r.Update(ctx, containerDiagnostic)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Add finalizer for this CR
+	if !controllerutil.ContainsFinalizer(containerDiagnostic, FinalizerName) {
+		logger.Info(fmt.Sprintf("Adding finalizer"))
+		controllerutil.AddFinalizer(containerDiagnostic, FinalizerName)
+		err = r.Update(ctx, containerDiagnostic)
+		if err != nil {
+			logger.Info(fmt.Sprintf("Failed to add finalizer: %+v", err))
+			return ctrl.Result{}, err
+		} else {
+			logger.Info(fmt.Sprintf("Added finalizer"))
+		}
+	}
+
+	logger.Info(fmt.Sprintf("Started normal processing"))
+
 	// This is just a marker status
 	containerDiagnostic.Status.Result = ResultProcessing
 
@@ -180,6 +222,23 @@ func (r *ContainerDiagnosticReconciler) SetStatus(status StatusEnum, message str
 		containerDiagnostic.Status.StatusMessage = StatusMixed.ToString()
 		containerDiagnostic.Status.Result = "Mixed results; describe and review Events"
 	}
+}
+
+func (r *ContainerDiagnosticReconciler) Finalize(logger logr.Logger, containerDiagnostic *diagnosticv1.ContainerDiagnostic) error {
+
+	// If the download file still exists, then delete it
+	if len(containerDiagnostic.Status.DownloadPath) > 0 {
+		err := os.Remove(containerDiagnostic.Status.DownloadPath)
+		if err == nil {
+			logger.Info(fmt.Sprintf("Successfully deleted %s", containerDiagnostic.Status.DownloadPath))
+		} else {
+			// We don't even bother to return this error though
+			logger.Info(fmt.Sprintf("Failed to delete %s: %v", containerDiagnostic.Status.DownloadPath, err))
+		}
+	}
+
+	logger.Info("Successfully finalized")
+	return nil
 }
 
 func IsInitialStatus(containerDiagnostic *diagnosticv1.ContainerDiagnostic) bool {
