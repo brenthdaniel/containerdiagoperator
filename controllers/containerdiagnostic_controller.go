@@ -48,7 +48,7 @@ import (
 	"strconv"
 )
 
-const OperatorVersion = "0.180.20211013"
+const OperatorVersion = "0.184.20211013"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -139,10 +139,7 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, err
 	}
 
-	// Only create a started event for certain states
-	if containerDiagnostic.Status.StatusCode == StatusProcessing.Value() {
-		r.RecordEventInfo(fmt.Sprintf("Started reconciling ContainerDiagnostic name: %s, namespace: %s, command: %s, status: %s @ %s", containerDiagnostic.Name, containerDiagnostic.Namespace, containerDiagnostic.Spec.Command, StatusEnum(containerDiagnostic.Status.StatusCode).ToString(), CurrentTimeAsString()), containerDiagnostic, logger)
-	}
+	logger.Info(fmt.Sprintf("Started reconciling ContainerDiagnostic name: %s, namespace: %s, command: %s, status: %s @ %s", containerDiagnostic.Name, containerDiagnostic.Namespace, containerDiagnostic.Spec.Command, StatusEnum(containerDiagnostic.Status.StatusCode).ToString(), CurrentTimeAsString()))
 
 	logger.Info(fmt.Sprintf("Details of the ContainerDiagnostic: %+v", containerDiagnostic))
 
@@ -156,7 +153,7 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 
 		// We make a quick transition from uninitialized to processing just so
 		// that we can show a processing status in the get
-		r.SetStatus(StatusProcessing, fmt.Sprintf("Started processing"), containerDiagnostic, logger)
+		r.SetStatus(StatusProcessing, fmt.Sprintf("Started processing with version %s", OperatorVersion), containerDiagnostic, logger)
 
 	} else if containerDiagnostic.Status.StatusCode == StatusProcessing.Value() {
 
@@ -354,7 +351,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 	// Finally, zip up the files for final user download
 	finalZip := filepath.Join("/tmp/containerdiagoutput", fmt.Sprintf("containerdiag_%s_%s.zip", time.Now().Format("20060102_150405"), uuid))
-	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "sh", "-c", fmt.Sprintf("cd %s; zip -r %s %s", filepath.Dir(localPermanentDirectory), finalZip, filepath.Base(localPermanentDirectory)))
+	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "sh", "-c", fmt.Sprintf("cd %s; zip -r %s .", localPermanentDirectory, finalZip))
 	var outputStr string = string(outputBytes[:])
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Could not zip %s: %+v %s", finalZip, err, outputStr), containerDiagnostic, logger)
