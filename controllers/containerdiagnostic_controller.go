@@ -50,7 +50,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const OperatorVersion = "0.189.20211013"
+const OperatorVersion = "0.191.20211016"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -180,6 +180,7 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 			return ctrl.Result{}, err
 		} else {
 			logger.Info(fmt.Sprintf("Added finalizer"))
+			return ctrl.Result{}, nil
 		}
 	}
 
