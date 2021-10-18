@@ -58,6 +58,12 @@ type ContainerDiagnosticSpec struct {
 	// +kubebuilder:default="/tmp/containerdiag/"
 	Directory string `json:"directory,omitempty"`
 
+	// Optional. Minimum required disk space free (in MB) in the Directory.
+	// Defaults to 15MB
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=15
+	MinDiskSpaceFreeMB int `json:"minDiskSpaceFreeMB,omitempty"`
+
 	// Optional. Whether or not to use a unique identifier in the directory
 	// name of each execution. Defaults to true.
 	// +kubebuilder:validation:Optional

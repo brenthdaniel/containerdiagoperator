@@ -39,7 +39,7 @@ make docker-build docker-push IMG="docker.io/kgibm/containerdiagoperator:$(awk '
   printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' "$(printf '[{"kind": "Pod", "name": "%s", "namespace": "%s"}]' "${TARGETCONTAINER}" "${TARGETNAMESPACE}")" "${STEPS}" | kubectl create -f - && \
   sleep 60 && \
   kubectl describe ContainerDiagnostic diag1 --namespace=containerdiagoperator-system && \
-  echo "" && \
-  kubectl logs --container=manager --namespace=containerdiagoperator-system $(kubectl get pods --namespace=containerdiagoperator-system | awk '/containerdiagoperator/ {print $1;}') && \
+  #echo "" && \
+  #kubectl logs --container=manager --namespace=containerdiagoperator-system $(kubectl get pods --namespace=containerdiagoperator-system | awk '/containerdiagoperator/ {print $1;}') && \
   echo "" && \
   kubectl get ContainerDiagnostic diag1 --namespace=containerdiagoperator-system

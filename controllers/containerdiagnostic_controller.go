@@ -50,7 +50,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const OperatorVersion = "0.191.20211016"
+const OperatorVersion = "0.217.20211018"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -104,6 +104,71 @@ type ContextTracker struct {
 	localPermanentDirectory string
 }
 
+type CustomLogger struct {
+	logger     logr.Logger
+	outputFile *os.File
+	buffer     string
+}
+
+func (l *CustomLogger) Info(str string) {
+	l.logger.Info(str)
+	l.AppendToLocalFile(str)
+}
+
+func (l *CustomLogger) Error(err error, str string) {
+	l.logger.Error(err, str)
+	l.AppendToLocalFile(str)
+	l.AppendToLocalFile(fmt.Sprintf("Error: %+v", err))
+}
+
+func (l *CustomLogger) Debug1(str string) {
+	l.logger.V(1).Info(str)
+	l.AppendToLocalFile(str)
+}
+
+func (l *CustomLogger) Debug2(str string) {
+	l.logger.V(2).Info(str)
+	l.AppendToLocalFile(str)
+}
+
+func (l *CustomLogger) Debug3(str string) {
+	l.logger.V(3).Info(str)
+	l.AppendToLocalFile(str)
+}
+
+func (l *CustomLogger) OpenLocalFile(fileName string) error {
+	outputFile, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+
+	if err == nil {
+
+		l.outputFile = outputFile
+		if len(l.buffer) > 0 {
+			l.outputFile.WriteString(l.buffer)
+			l.outputFile.Sync()
+			l.buffer = ""
+		}
+	}
+
+	return err
+}
+
+func (l *CustomLogger) CloseLocalFile() {
+	if l.outputFile != nil {
+		l.outputFile.Close()
+		l.outputFile = nil
+	}
+}
+
+func (l *CustomLogger) AppendToLocalFile(str string) {
+	t := "[" + CurrentTimeAsString() + "] "
+	if l.outputFile != nil {
+		l.outputFile.WriteString(t + str + "\n")
+		l.outputFile.Sync()
+	} else {
+		l.buffer += t + str + "\n"
+	}
+}
+
 // +kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=diagnostic.ibm.com,resources=containerdiagnostics/finalizers,verbs=update
@@ -124,7 +189,8 @@ type ContextTracker struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
+
+	logger := &CustomLogger{logger: log.FromContext(ctx)}
 
 	logger.Info(fmt.Sprintf("ContainerDiagnosticReconciler Reconcile called, version: %s", OperatorVersion))
 
@@ -212,7 +278,7 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 	return r.ProcessResult(result, err, ctx, containerDiagnostic, logger)
 }
 
-func (r *ContainerDiagnosticReconciler) SetStatus(status StatusEnum, message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) {
+func (r *ContainerDiagnosticReconciler) SetStatus(status StatusEnum, message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger) {
 	r.RecordEventInfo(fmt.Sprintf("Status update (%s): %s @ %s", status.ToString(), message, CurrentTimeAsString()), containerDiagnostic, logger)
 	if IsInitialStatus(containerDiagnostic) {
 		containerDiagnostic.Status.StatusCode = int(status)
@@ -225,7 +291,7 @@ func (r *ContainerDiagnosticReconciler) SetStatus(status StatusEnum, message str
 	}
 }
 
-func (r *ContainerDiagnosticReconciler) Finalize(logger logr.Logger, containerDiagnostic *diagnosticv1.ContainerDiagnostic) error {
+func (r *ContainerDiagnosticReconciler) Finalize(logger *CustomLogger, containerDiagnostic *diagnosticv1.ContainerDiagnostic) error {
 
 	// If the download file still exists, then delete it
 	if len(containerDiagnostic.Status.DownloadPath) > 0 {
@@ -256,7 +322,7 @@ func CurrentTimeAsString() string {
 	return time.Now().Format("2006-01-02T15:04:05.000")
 }
 
-func (r *ContainerDiagnosticReconciler) ProcessResult(result ctrl.Result, err error, ctx context.Context, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
+func (r *ContainerDiagnosticReconciler) ProcessResult(result ctrl.Result, err error, ctx context.Context, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger) (ctrl.Result, error) {
 	if err == nil {
 		logger.Info(fmt.Sprintf("Finished reconciling @ %s", CurrentTimeAsString()))
 	} else {
@@ -280,14 +346,14 @@ func (r *ContainerDiagnosticReconciler) ProcessResult(result ctrl.Result, err er
 	return result, err
 }
 
-func (r *ContainerDiagnosticReconciler) RecordEventInfo(message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) {
+func (r *ContainerDiagnosticReconciler) RecordEventInfo(message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger) {
 	logger.Info(message)
 
 	// https://pkg.go.dev/k8s.io/client-go/tools/record#EventRecorder
 	r.EventRecorder.Event(containerDiagnostic, corev1.EventTypeNormal, "Informational", message)
 }
 
-func (r *ContainerDiagnosticReconciler) RecordEventWarning(err error, message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) {
+func (r *ContainerDiagnosticReconciler) RecordEventWarning(err error, message string, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger) {
 	logger.Error(err, message)
 
 	// k8s only has normal and warning event types
@@ -295,7 +361,7 @@ func (r *ContainerDiagnosticReconciler) RecordEventWarning(err error, message st
 	r.EventRecorder.Event(containerDiagnostic, corev1.EventTypeWarning, "Warning", message)
 }
 
-func (r *ContainerDiagnosticReconciler) CommandVersion(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
+func (r *ContainerDiagnosticReconciler) CommandVersion(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger) (ctrl.Result, error) {
 	logger.Info("Processing command: version")
 
 	r.SetStatus(StatusSuccess, fmt.Sprintf("Version %s", OperatorVersion), containerDiagnostic, logger)
@@ -303,7 +369,7 @@ func (r *ContainerDiagnosticReconciler) CommandVersion(ctx context.Context, req 
 	return ctrl.Result{}, nil
 }
 
-func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) (ctrl.Result, error) {
+func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger) (ctrl.Result, error) {
 	logger.Info("Processing command: script")
 
 	if len(containerDiagnostic.Spec.Steps) == 0 {
@@ -321,6 +387,19 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 		return ctrl.Result{}, err
 	}
 
+	localPermanentDirectoryCluster := filepath.Join(localPermanentDirectory, "cluster")
+	err = os.MkdirAll(localPermanentDirectoryCluster, os.ModePerm)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not create local permanent output space in %s: %+v", localPermanentDirectoryCluster, err), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
+	err = logger.OpenLocalFile(filepath.Join(localPermanentDirectoryCluster, "trace.txt"))
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not create local debug file in %s: %+v", localPermanentDirectoryCluster, err), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
 	contextTracker := ContextTracker{localPermanentDirectory: localPermanentDirectory}
 
 	if containerDiagnostic.Spec.TargetObjects != nil {
@@ -335,7 +414,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 			}, pod)
 
 			if err == nil {
-				logger.V(1).Info(fmt.Sprintf("found pod: %+v", pod))
+				logger.Debug1(fmt.Sprintf("found pod: %+v", pod))
 				r.RunScriptOnPod(ctx, req, containerDiagnostic, logger, pod, &contextTracker)
 			} else {
 				if errors.IsNotFound(err) {
@@ -403,11 +482,15 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 				return ctrl.Result{}, err
 			}
 
-			logger.V(1).Info(fmt.Sprintf("CommandScript uncompress output: %v", outputStr))
+			logger.Debug1(fmt.Sprintf("CommandScript uncompress output: %v", outputStr))
 
 			os.Remove(fileToUncompress)
 		}
 	}
+
+	logger.Info("CommandScript: Finished pre-processing zip for download.")
+
+	logger.CloseLocalFile()
 
 	logger.Info("CommandScript: creating final zip")
 
@@ -420,7 +503,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 		return ctrl.Result{}, err
 	}
 
-	logger.V(1).Info(fmt.Sprintf("CommandScript zip output: %v", outputStr))
+	logger.Debug1(fmt.Sprintf("CommandScript zip output: %v", outputStr))
 
 	// Now that we've created the zip, we can delete the actual directory to save space
 	os.RemoveAll(localPermanentDirectory)
@@ -466,7 +549,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 	return ctrl.Result{}, nil
 }
 
-func (r *ContainerDiagnosticReconciler) RunScriptOnPod(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, contextTracker *ContextTracker) {
+func (r *ContainerDiagnosticReconciler) RunScriptOnPod(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger, pod *corev1.Pod, contextTracker *ContextTracker) {
 	logger.Info(fmt.Sprintf("RunScriptOnPod containers: %d", len(pod.Spec.Containers)))
 	for _, container := range pod.Spec.Containers {
 		logger.Info(fmt.Sprintf("RunScriptOnPod container: %+v", container))
@@ -486,7 +569,7 @@ func GetUniqueIdentifier() string {
 	return "tmp" + strconv.FormatInt(r.Int63(), 10)
 }
 
-func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, contextTracker *ContextTracker) {
+func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger, pod *corev1.Pod, container corev1.Container, contextTracker *ContextTracker) {
 	logger.Info(fmt.Sprintf("RunScriptOnContainer pod: %s, container: %s", pod.Name, container.Name))
 
 	contextTracker.visited++
@@ -594,6 +677,9 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		"/usr/bin/rm",
 		"/usr/bin/sleep",
 		"/usr/bin/zip",
+		"/usr/bin/df",
+		"/usr/bin/awk",
+		"/usr/bin/ldd",
 	} {
 		ok := r.ProcessInstallCommand(command, filesToTar, containerDiagnostic, logger)
 		if !ok {
@@ -672,7 +758,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 							if !strings.Contains(line, "$(tput") {
 								if UseLdLinuxDirect {
-									logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer processing %s line: %s", command, line))
+									logger.Debug3(fmt.Sprintf("RunScriptOnContainer processing %s line: %s", command, line))
 
 									if !strings.HasPrefix(line, "#") && !strings.Contains(line, "FILES_STRING=") && !strings.Contains(line, "TEMP_STRING=") {
 
@@ -722,15 +808,15 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 										for _, replaceCommand := range replacements {
 											if replaceCommand == "tar" && strings.Contains(line, ".tar") {
 											} else {
-												logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer before replacing %s in line: %s", replaceCommand, line))
+												logger.Debug3(fmt.Sprintf("RunScriptOnContainer before replacing %s in line: %s", replaceCommand, line))
 												line = strings.ReplaceAll(line, replaceCommand, GetExecutionCommand(containerTmpFilesPrefix, replaceCommand, ""))
-												logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer after replacing %s in line: %s", replaceCommand, line))
+												logger.Debug3(fmt.Sprintf("RunScriptOnContainer after replacing %s in line: %s", replaceCommand, line))
 											}
 										}
 
 										line = line + line_end
 									}
-									logger.V(3).Info(fmt.Sprintf("RunScriptOnContainer writing line: %s", line))
+									logger.Debug3(fmt.Sprintf("RunScriptOnContainer writing line: %s", line))
 								}
 								localScriptFile.WriteString(line + "\n")
 							}
@@ -813,12 +899,22 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			}
 
 			// Echo outputfile directly to stdout without redirecting to the output file because a user executing this script wants to know where the output goes
-			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"Writing output to %s\"", remoteOutputFile), false, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"Writing output to %s\"", remoteOutputFile), false, "")
 
-			// Echo a simple prolog to the output file
+			// Echo a simple prolog to the output file including free disk space
 			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
 			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"containerdiag: Started execution\"", true, remoteOutputFile)
 			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "df", "--block-size=MiB --print-type", false, "")
+
+			// The first thing we do is check disk space in our target directory and bail if there isn't enough
+			dfcmd := GetExecutionCommand(containerTmpFilesPrefix, "df", "")
+			awkcmd := GetExecutionCommand(containerTmpFilesPrefix, "awk", "")
+			echocmd := GetExecutionCommand(containerTmpFilesPrefix, "echo", "")
+
+			localExecuteFile.WriteString(fmt.Sprintf("DFOUTPUT=\"$(%s --block-size=MiB --output=avail %s | %s 'BEGIN {avail = -1;} NR == 2 {gsub(/M.*/, \"\"); avail = 0 + $1;} END {printf(\"%%s\", avail);}')\"\necho \"Disk space free in %s: ${DFOUTPUT} MB\"\n", dfcmd, containerTmpFilesPrefix, awkcmd, containerTmpFilesPrefix))
+
+			localExecuteFile.WriteString(fmt.Sprintf("if [ \"${DFOUTPUT}\" = \"\" ]; then\n  DFOUTPUT=\"0\";\nfi\nif [ \"${DFOUTPUT}\" -lt \"%d\" ]; then\n  %s \"ERROR: The available disk space in %s of ${DFOUTPUT} MB is insufficient (%d MB required).\";\n  exit 1;\nfi\n", containerDiagnostic.Spec.MinDiskSpaceFreeMB, echocmd, containerTmpFilesPrefix, containerDiagnostic.Spec.MinDiskSpaceFreeMB))
 
 			// Build the command execution with arguments
 			command := step.Arguments[0]
@@ -982,7 +1078,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		}
 
 		var outputStr string = string(outputBytes[:])
-		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer local tar output: %v", outputStr))
+		logger.Debug2(fmt.Sprintf("RunScriptOnContainer local tar output: %v", outputStr))
 
 		file, err := os.Open(localTarFile)
 		if err != nil {
@@ -1002,7 +1098,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 		file.Close()
 
-		logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", tarStdout.String(), tarStderr.String()))
+		logger.Debug1(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", tarStdout.String(), tarStderr.String()))
 
 		if err != nil {
 			r.SetStatus(StatusError, fmt.Sprintf("Error uploading tar file to pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -1013,7 +1109,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			return
 		}
 
-		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer tar results: stdout: %v stderr: %v", tarStdout.String(), tarStderr.String()))
+		logger.Debug2(fmt.Sprintf("RunScriptOnContainer tar results: stdout: %v stderr: %v", tarStdout.String(), tarStderr.String()))
 	}
 
 	// Run any executions
@@ -1024,15 +1120,30 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 			remoteExecutionScript := filepath.Join(containerTmpFilesPrefix, localScratchSpaceDirectory, fmt.Sprintf("execute_%d.sh", (stepIndex+1)))
 
-			logger.Info(fmt.Sprintf("RunScriptOnContainer Running %v", remoteExecutionScript))
+			logger.Info(fmt.Sprintf("RunScriptOnContainer Running script %v", remoteExecutionScript))
 
 			var stdout, stderr bytes.Buffer
 			err := r.ExecInContainer(pod, container, []string{remoteExecutionScript}, &stdout, &stderr, nil, nil)
 
-			logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", stdout.String(), stderr.String()))
+			logger.Debug1(fmt.Sprintf("ExecInContainer results: err: %v, stdout: %s\n\nstderr: %s\n", err, stdout.String(), stderr.String()))
 
 			if err != nil {
-				r.SetStatus(StatusError, fmt.Sprintf("Error running 'execute' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+
+				stdout := stdout.String()
+				stderr := stderr.String()
+
+				var log string
+				if len(stdout) == 0 {
+					log = stderr
+				} else if len(stderr) == 0 {
+					log = stdout
+				} else {
+					log = stderr + "\n\n" + stdout
+				}
+
+				containerDiagnostic.Status.Log += log
+
+				r.SetStatus(StatusError, fmt.Sprintf("Error running 'execute' step on pod (review Status Log): %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
 
 				// We don't stop processing other pods/containers, just return. If this is the
 				// only error, status will show as error; othewrise, as mixed
@@ -1060,7 +1171,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	logger.Info(fmt.Sprintf("RunScriptOnContainer zipping up remote files: %s", zipScript))
 
 	err = r.ExecInContainer(pod, container, []string{zipScript}, &zipStdout, &zipStderr, nil, nil)
-	logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", zipStdout.String(), zipStderr.String()))
+	logger.Debug1(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", zipStdout.String(), zipStderr.String()))
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error running 'zip' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -1096,7 +1207,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	fileWriter.Flush()
 	file.Close()
 
-	logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stderr: %s\n", tarStderr.String()))
+	logger.Debug1(fmt.Sprintf("ExecInContainer results: stderr: %s\n", tarStderr.String()))
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error downloading %s from pod: %s container: %s error: %+v for %v", remoteZipFile, pod.Name, container.Name, err, args), containerDiagnostic, logger)
@@ -1121,7 +1232,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		return
 	}
 
-	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer untar output: %v", outputStr))
+	logger.Debug1(fmt.Sprintf("RunScriptOnContainer untar output: %v", outputStr))
 
 	// Delete the tar file
 	os.Remove(localDownloadedTarFile)
@@ -1173,7 +1284,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			var stdout, stderr bytes.Buffer
 			err := r.ExecInContainer(pod, container, []string{cleanScript}, &stdout, &stderr, nil, nil)
 
-			logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", stdout.String(), stderr.String()))
+			logger.Debug1(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", stdout.String(), stderr.String()))
 
 			if err != nil {
 				r.SetStatus(StatusError, fmt.Sprintf("Error running clean step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
@@ -1237,13 +1348,20 @@ func AddDirectCallEnvars(localFile *os.File, containerTmpFilesPrefix string) {
 	localFile.WriteString(fmt.Sprintf("export LD_LIBRARY_PATH=%s\n", filepath.Join(containerTmpFilesPrefix, "lib64")))
 }
 
-func (r *ContainerDiagnosticReconciler) ProcessInstallCommand(fullCommand string, filesToTar map[string]bool, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger) bool {
+func (r *ContainerDiagnosticReconciler) ProcessInstallCommand(fullCommand string, filesToTar map[string]bool, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger) bool {
 
 	fullCommand = filepath.Clean(fullCommand)
 
-	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer Processing install command: %s", fullCommand))
+	logger.Debug1(fmt.Sprintf("RunScriptOnContainer Processing install command: %s", fullCommand))
 
 	filesToTar[fullCommand] = true
+
+	// We can't run ldd on itself
+	if strings.HasSuffix(fullCommand, "ldd") {
+		return true
+	}
+
+	ProcessSymlinks(fullCommand, filesToTar, logger)
 
 	lines, ok := r.FindSharedLibraries(logger, containerDiagnostic, fullCommand)
 	if !ok {
@@ -1252,36 +1370,39 @@ func (r *ContainerDiagnosticReconciler) ProcessInstallCommand(fullCommand string
 	}
 
 	for _, line := range lines {
-		logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
+		logger.Debug2(fmt.Sprintf("RunScriptOnContainer ldd file: %v", line))
 		filesToTar[line] = true
+		ProcessSymlinks(line, filesToTar, logger)
+	}
 
-		// Follow any symlinks and add those
-		var last string = line
-		var count int = 0
+	return true
+}
 
-		for count < 10 {
-			logger.V(2).Info(fmt.Sprintf("ProcessInstallCommand checking for symlinks: %s", last))
-			fileInfo, err := os.Lstat(last)
-			if err == nil {
-				if fileInfo.Mode()&os.ModeSymlink != 0 {
-					checkLink, err := os.Readlink(last)
-					logger.V(2).Info(fmt.Sprintf("ProcessInstallCommand found symlink: %s", checkLink))
-					if err == nil {
-						if checkLink != last {
+func ProcessSymlinks(check string, filesToTar map[string]bool, logger *CustomLogger) {
+	// Follow any symlinks and add those
+	var last string = check
+	var count int = 0
 
-							if !filepath.IsAbs(checkLink) {
-								checkLink = filepath.Clean(filepath.Join(filepath.Dir(last), checkLink))
-							} else {
-								checkLink = filepath.Clean(checkLink)
-							}
+	for count < 10 {
+		logger.Debug2(fmt.Sprintf("ProcessSymlinks checking for symlinks: %s", last))
+		fileInfo, err := os.Lstat(last)
+		if err == nil {
+			if fileInfo.Mode()&os.ModeSymlink != 0 {
+				checkLink, err := os.Readlink(last)
+				logger.Debug2(fmt.Sprintf("ProcessSymlinks found symlink: %s", checkLink))
+				if err == nil {
+					if checkLink != last {
 
-							logger.V(2).Info(fmt.Sprintf("ProcessInstallCommand after cleaning: %s", checkLink))
-
-							filesToTar[checkLink] = true
-							last = checkLink
+						if !filepath.IsAbs(checkLink) {
+							checkLink = filepath.Clean(filepath.Join(filepath.Dir(last), checkLink))
 						} else {
-							break
+							checkLink = filepath.Clean(checkLink)
 						}
+
+						logger.Debug2(fmt.Sprintf("ProcessSymlinks after cleaning: %s", checkLink))
+
+						filesToTar[checkLink] = true
+						last = checkLink
 					} else {
 						break
 					}
@@ -1291,23 +1412,23 @@ func (r *ContainerDiagnosticReconciler) ProcessInstallCommand(fullCommand string
 			} else {
 				break
 			}
-
-			// Avoid an infinite loop
-			count++
+		} else {
+			break
 		}
-	}
 
-	return true
+		// Avoid an infinite loop
+		count++
+	}
 }
 
-func Cleanup(logger logr.Logger, localScratchSpaceDirectory string) {
+func Cleanup(logger *CustomLogger, localScratchSpaceDirectory string) {
 	err := os.RemoveAll(localScratchSpaceDirectory)
 	if err != nil {
 		logger.Info(fmt.Sprintf("Could not cleanup %s: %+v", localScratchSpaceDirectory, err))
 	}
 }
 
-func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger logr.Logger, pod *corev1.Pod, container corev1.Container, contextTracker *ContextTracker, uuid string) (response string, ok bool) {
+func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context.Context, req ctrl.Request, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger, pod *corev1.Pod, container corev1.Container, contextTracker *ContextTracker, uuid string) (response string, ok bool) {
 
 	containerTmpFilesPrefix := containerDiagnostic.Spec.Directory
 
@@ -1315,12 +1436,12 @@ func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context
 		containerTmpFilesPrefix += uuid + "/"
 	}
 
-	logger.V(1).Info(fmt.Sprintf("RunScriptOnContainer running mkdir: %s", containerTmpFilesPrefix))
+	logger.Debug1(fmt.Sprintf("RunScriptOnContainer running mkdir: %s", containerTmpFilesPrefix))
 
 	var stdout, stderr bytes.Buffer
 	err := r.ExecInContainer(pod, container, []string{"mkdir", "-p", containerTmpFilesPrefix}, &stdout, &stderr, nil, nil)
 
-	logger.V(1).Info(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", stdout.String(), stderr.String()))
+	logger.Debug1(fmt.Sprintf("ExecInContainer results: stdout: %s\n\nstderr: %s\n", stdout.String(), stderr.String()))
 
 	if err != nil {
 		r.SetStatus(StatusError, fmt.Sprintf("Error executing mkdir in container: %+v", err), containerDiagnostic, logger)
@@ -1333,9 +1454,9 @@ func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context
 	return containerTmpFilesPrefix, true
 }
 
-func (r *ContainerDiagnosticReconciler) ExecuteLocalCommand(logger logr.Logger, containerDiagnostic *diagnosticv1.ContainerDiagnostic, command string, arguments ...string) (output []byte, err error) {
+func (r *ContainerDiagnosticReconciler) ExecuteLocalCommand(logger *CustomLogger, containerDiagnostic *diagnosticv1.ContainerDiagnostic, command string, arguments ...string) (output []byte, err error) {
 
-	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ExecuteLocalCommand: %v", command))
+	logger.Debug2(fmt.Sprintf("RunScriptOnContainer ExecuteLocalCommand: %v", command))
 
 	outputBytes, err := exec.Command(command, arguments...).CombinedOutput()
 	if err != nil {
@@ -1346,12 +1467,12 @@ func (r *ContainerDiagnosticReconciler) ExecuteLocalCommand(logger logr.Logger, 
 		return outputBytes, err
 	}
 
-	logger.V(2).Info(fmt.Sprintf("RunScriptOnContainer ExecuteLocalCommand results: %v", output))
+	logger.Debug2(fmt.Sprintf("RunScriptOnContainer ExecuteLocalCommand results: %v", output))
 
 	return outputBytes, nil
 }
 
-func (r *ContainerDiagnosticReconciler) FindSharedLibraries(logger logr.Logger, containerDiagnostic *diagnosticv1.ContainerDiagnostic, command string) ([]string, bool) {
+func (r *ContainerDiagnosticReconciler) FindSharedLibraries(logger *CustomLogger, containerDiagnostic *diagnosticv1.ContainerDiagnostic, command string) ([]string, bool) {
 	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "ldd", command)
 	if err != nil {
 		// We don't stop processing other pods/containers, just return. If this is the

@@ -71,6 +71,11 @@ spec:
                 description: Optional. Target directory for diagnostic files. Must
                   end in trailing slash. Defaults to /tmp/containerdiag/.
                 type: string
+              minDiskSpaceFreeMB:
+                default: 15
+                description: Optional. Minimum required disk space free (in MB) in
+                  the Directory. Defaults to 15MB
+                type: integer
               steps:
                 description: A list of steps to perform for the specified Command.
                 items:
