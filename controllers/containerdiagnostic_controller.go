@@ -50,7 +50,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const OperatorVersion = "0.217.20211018"
+const OperatorVersion = "0.218.20211018"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -1144,6 +1144,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				containerDiagnostic.Status.Log += log
 
 				r.SetStatus(StatusError, fmt.Sprintf("Error running 'execute' step on pod (review Status Log): %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
+
+				// TODO run clean.sh
 
 				// We don't stop processing other pods/containers, just return. If this is the
 				// only error, status will show as error; othewrise, as mixed
