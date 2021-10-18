@@ -4,9 +4,9 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    operators.operatorframework.io/builder: operator-sdk-v1.9.0
+    operators.operatorframework.io/builder: operator-sdk-v1.13.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
-  name: containerdiagoperator.v0.0.1
+  name: containerdiagoperator.v0.219.20211018
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -27,6 +27,47 @@ spec:
     spec:
       clusterPermissions:
       - rules:
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - deployments/status
+          verbs:
+          - get
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - pods/exec
+          verbs:
+          - create
+        - apiGroups:
+          - ""
+          resources:
+          - pods/status
+          verbs:
+          - get
         - apiGroups:
           - diagnostic.ibm.com
           resources:
@@ -97,7 +138,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: controller:latest
+                image: docker.io/kgibm/containerdiagoperator:0.219.20211018
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -114,10 +155,10 @@ spec:
                 resources:
                   limits:
                     cpu: 100m
-                    memory: 30Mi
+                    memory: 60Mi
                   requests:
                     cpu: 100m
-                    memory: 20Mi
+                    memory: 60Mi
                 securityContext:
                   allowPrivilegeEscalation: false
               securityContext:
@@ -180,4 +221,4 @@ spec:
   provider:
     name: kevin.grigorenko@us.ibm.com
     url: https://github.com/kgibm/containerdiagoperator
-  version: 0.0.1
+  version: 0.219.20211018
