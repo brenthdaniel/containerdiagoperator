@@ -30,8 +30,9 @@ if [ "${EXECUTE}" = "linperf" ]; then
 fi
 
 make undeploy
-make docker-build docker-push IMG="docker.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)" && \
-  make deploy IMG="docker.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)" && \
+export VERSION="$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)" && \
+  make docker-build docker-push IMG="docker.io/kgibm/containerdiagoperator:${VERSION}" && \
+  make deploy IMG="docker.io/kgibm/containerdiagoperator:${VERSION}" && \
   sleep 10 && \
   kubectl get pods --namespace=containerdiagoperator-system && \
   sleep 20 && \
