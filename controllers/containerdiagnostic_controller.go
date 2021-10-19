@@ -50,7 +50,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const OperatorVersion = "0.221.20211019"
+const OperatorVersion = "0.223.20211019"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE

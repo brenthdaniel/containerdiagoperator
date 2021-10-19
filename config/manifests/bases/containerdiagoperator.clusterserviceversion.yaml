@@ -17,7 +17,7 @@ spec:
       name: containerdiagnostics.diagnostic.ibm.com
       version: v1
   description: Run diagnostics on containers without restarting them.
-  displayName: ContainerDiagnosticOperator
+  displayName: Container Diagnostic Operator
   icon:
   - base64data: ""
     mediatype: ""
@@ -37,7 +37,7 @@ spec:
   keywords:
   - diagnostics
   links:
-  - name: Containerdiagoperator
+  - name: GitHub
     url: https://github.com/kgibm/containerdiagoperator
   maintainers:
   - email: kevin.grigorenko@us.ibm.com

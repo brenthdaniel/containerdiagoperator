@@ -167,7 +167,7 @@ FIELDS:
 
 Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operators/golang/quickstart/). The main operator controller code is in [containerdiagnostic_controller.go](https://github.com/kgibm/containerdiagoperator/blob/main/controllers/containerdiagnostic_controller.go).
 
-### Build and Deploy
+### Local Build
 
 1. Installation pre-requisities:
     1. [git](https://git-scm.com/downloads)
@@ -246,27 +246,31 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    2021-06-23T16:40:15.931Z	INFO	setup	starting manager 0.4.20210803
    ```
 
-To destroy the CRD and all CRs:
+#### Uninstall local build
 
 ```
 make undeploy
 ```
 
-#### Using podman
+### Build Operator
 
-Most commonly with `podman machine start` or [CodeReady Containers](https://developers.redhat.com/products/codeready-containers/overview) with `crc start --cpus 4 --memory 12000 && eval $(crc podman-env)`
+This will install into your [current namespace](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-Namespace-Change_current_namespace) which can be anything.
 
-#### IBM Cloud Container Registry
+1. `export VERSION="$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"`
+1. `export IMG=docker.io/kgibm/containerdiagoperator:${VERSION}`
+1. `export BUNDLE_IMG=docker.io/kgibm/containerdiagoperatorbundle:$VERSION`
+1. `make build`
+1. `make docker-build docker-push`
+1. `make bundle`
+1. `make bundle-build bundle-push`
+1. `operator-sdk bundle validate $BUNDLE_IMG`
+1. `operator-sdk run bundle $BUNDLE_IMG`
 
-Listing images:
+#### Uninstall Operator 
 
-```
-$ ibmcloud cr image-list
-Listing images...
-
-Repository                                   Tag              Digest         Namespace       Created          Size     Security status   
-icr.io/containerdiag/containerdiagoperator   0.177.20211012   4a45b147a880   containerdiag   11 minutes ago   188 MB   Scanning...   
-```
+1. Delete all CRs
+1. OpenShift web console } Operators } Installed Operators } Container Diagnostic Operator } Actions } Uninstall
+1. `kubectl delete catalogsources.operators.coreos.com containerdiagoperator-catalog`
 
 ### Notes
 
@@ -305,3 +309,19 @@ icr.io/containerdiag/containerdiagoperator   0.177.20211012   4a45b147a880   con
 ### JSON Example (Liberty linperf.sh)
 
 `printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' '[{"kind": "Pod", "name": "liberty1-774c5fccc6-f7mjt", "namespace": "testns1"}]' '[{"command": "install", "arguments": ["linperf.sh"]}, {"command": "execute", "arguments": ["linperf.sh"]}, {"command": "package", "arguments": ["/output/javacore*", "/logs/", "/config/"]} , {"command": "clean", "arguments": ["/output/javacore*"]}]' | kubectl create -f -`
+
+### Using podman
+
+Most commonly with `podman machine start` or [CodeReady Containers](https://developers.redhat.com/products/codeready-containers/overview) with `crc start --cpus 4 --memory 12000 && eval $(crc podman-env)`
+
+### IBM Cloud Container Registry
+
+Listing images:
+
+```
+$ ibmcloud cr image-list
+Listing images...
+
+Repository                                   Tag              Digest         Namespace       Created          Size     Security status   
+icr.io/containerdiag/containerdiagoperator   0.177.20211012   4a45b147a880   containerdiag   11 minutes ago   188 MB   Scanning...   
+```
