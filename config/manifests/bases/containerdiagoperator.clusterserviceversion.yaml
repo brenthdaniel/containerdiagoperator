@@ -10,8 +10,7 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-    - description: ContainerDiagnostic is the Schema for the containerdiagnostics
-        API
+    - description: Defines the diagnostics to run on a container
       displayName: Container Diagnostic
       kind: ContainerDiagnostic
       name: containerdiagnostics.diagnostic.ibm.com
