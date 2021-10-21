@@ -14,14 +14,13 @@ While we welcome any [bug reports or suggestions](https://github.com/kgibm/conta
 apiVersion: diagnostic.ibm.com/v1
 kind: ContainerDiagnostic
 metadata:
-  name: diag1
-  namespace: containerdiagoperator-system
+  name: example
 spec:
   command: script
   targetObjects:
   - kind: Pod
-    name: liberty1-774c5fccc6-f7mjt
-    namespace: testns1
+    name: $PODNAME
+    namespace: $PODNAMESPACE
   steps:
   - command: install
     arguments:
