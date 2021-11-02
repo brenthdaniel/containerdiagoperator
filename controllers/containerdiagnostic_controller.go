@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,9 +49,11 @@ import (
 	"strconv"
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	"encoding/json"
 )
 
-const OperatorVersion = "0.223.20211019"
+const OperatorVersion = "0.230.20211102"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -492,6 +495,59 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 	logger.CloseLocalFile()
 
+	// Manager container name
+	hostnameBytes, err := ioutil.ReadFile("/etc/hostname")
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not read /etc/hostname: %+v", err), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
+	managerPodName := string(hostnameBytes)
+	managerPodName = strings.ReplaceAll(managerPodName, "\n", "")
+	managerPodName = strings.ReplaceAll(managerPodName, "\r", "")
+
+	logger.Info("CommandScript: processing all pods")
+
+	// Find the namespace of the manager container pod
+	clientset, err := kubernetes.NewForConfig(r.Config)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not create client: %+v", err), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
+	// https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/pod.go#L43
+	allpods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not list all pods: %+v", err), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
+	// We're searching for our manager pod namespace, but while we're at it, let's note
+	// down all pods and their details
+
+	podsFile, err := os.OpenFile(filepath.Join(localPermanentDirectoryCluster, "pods.txt"), os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Could not create pods file in %s: %+v", localPermanentDirectoryCluster, err), containerDiagnostic, logger)
+		return ctrl.Result{}, err
+	}
+
+	for podIndex, pod := range allpods.Items {
+		jsonBytes, err := json.MarshalIndent(pod, "  ", "  ")
+		if err != nil {
+			r.SetStatus(StatusError, fmt.Sprintf("Could not generate JSON for %s: %+v", pod.Name, err), containerDiagnostic, logger)
+			return ctrl.Result{}, err
+		}
+		podsFile.WriteString(fmt.Sprintf("Pod %d:\n%s\n", (podIndex + 1), string(jsonBytes)))
+		if pod.Name == managerPodName {
+			containerDiagnostic.Status.DownloadNamespace = pod.Namespace
+		}
+	}
+
+	podsFile.Close()
+
+	logger.Info(fmt.Sprintf("manager pod namespace: %s", containerDiagnostic.Status.DownloadNamespace))
+
 	logger.Info("CommandScript: creating final zip")
 
 	// Finally, zip up the files for final user download
@@ -508,23 +564,16 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 	// Now that we've created the zip, we can delete the actual directory to save space
 	os.RemoveAll(localPermanentDirectory)
 
-	// Container name
-	hostnameBytes, err := ioutil.ReadFile("/etc/hostname")
-	if err != nil {
-		r.SetStatus(StatusError, fmt.Sprintf("Could not read /etc/hostname: %+v", err), containerDiagnostic, logger)
-		return ctrl.Result{}, err
-	}
-
-	containerName := string(hostnameBytes)
-	containerName = strings.ReplaceAll(containerName, "\n", "")
-	containerName = strings.ReplaceAll(containerName, "\r", "")
-
 	containerDiagnostic.Status.DownloadPath = finalZip
 	containerDiagnostic.Status.DownloadFileName = filepath.Base(finalZip)
-	containerDiagnostic.Status.DownloadPod = containerName
+	containerDiagnostic.Status.DownloadPod = managerPodName
 	containerDiagnostic.Status.DownloadContainer = "manager"
-	containerDiagnostic.Status.DownloadNamespace = "containerdiagoperator-system"
-	containerDiagnostic.Status.Download = fmt.Sprintf("kubectl cp %s:%s %s --container=%s --namespace=%s", containerDiagnostic.Status.DownloadPod, containerDiagnostic.Status.DownloadPath, containerDiagnostic.Status.DownloadFileName, containerDiagnostic.Status.DownloadContainer, containerDiagnostic.Status.DownloadNamespace)
+
+	if containerDiagnostic.Status.DownloadNamespace == "" {
+		containerDiagnostic.Status.Download = fmt.Sprintf("kubectl cp %s:%s %s --container=%s", containerDiagnostic.Status.DownloadPod, containerDiagnostic.Status.DownloadPath, containerDiagnostic.Status.DownloadFileName, containerDiagnostic.Status.DownloadContainer)
+	} else {
+		containerDiagnostic.Status.Download = fmt.Sprintf("kubectl cp %s:%s %s --container=%s --namespace=%s", containerDiagnostic.Status.DownloadPod, containerDiagnostic.Status.DownloadPath, containerDiagnostic.Status.DownloadFileName, containerDiagnostic.Status.DownloadContainer, containerDiagnostic.Status.DownloadNamespace)
+	}
 
 	r.RecordEventInfo(fmt.Sprintf("Download: %s", containerDiagnostic.Status.Download), containerDiagnostic, logger)
 
