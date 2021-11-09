@@ -27,7 +27,7 @@ spec:
     - top
   - command: execute
     arguments:
-    - top -b -H -d 5 -n 6
+    - top -b -H -d 5 -n 2
   - command: clean
 ```
 
