@@ -6,7 +6,7 @@ metadata:
     capabilities: Basic Install
     operators.operatorframework.io/builder: operator-sdk-v1.13.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
-  name: containerdiagoperator.v0.223.20211019
+  name: containerdiagoperator.v0.231.20211108
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -21,26 +21,12 @@ spec:
   description: Run diagnostics on containers without restarting them.
   displayName: Container Diagnostic Operator
   icon:
-  - base64data: ""
-    mediatype: ""
+  - base64data: iVBORw0KGgoAAAANSUhEUgAAAJgAAACYCAYAAAAYwiAhAAABhGlDQ1BJQ0MgcHJvZmlsZQAAKJF9kTtIw0Acxr8+xFelgh1EHDJUJwuiIo5ahSJUCLVCqw4ml76gSUOS4uIouBYcfCxWHVycdXVwFQTBB4ibm5Oii5T4v6TQIsaD4358d9/H3XeAv15mqhkcB1TNMlKJuJDJrgqdr+hFN4IIo19ipj4nikl4jq97+Ph6F+NZ3uf+HH1KzmSATyCeZbphEW8QT29aOud94ggrSgrxOfGYQRckfuS67PIb54LDfp4ZMdKpeeIIsVBoY7mNWdFQiaeIo4qqUb4/47LCeYuzWq6y5j35C0M5bWWZ6zSHkcAiliBCgIwqSijDQoxWjRQTKdqPe/iHHL9ILplcJTByLKACFZLjB/+D392a+ckJNykUBzpebPtjBOjcBRo12/4+tu3GCRB4Bq60lr9SB2Y+Sa+1tOgREN4GLq5bmrwHXO4Ag0+6ZEiOFKDpz+eB9zP6piwwcAv0rLm9Nfdx+gCkqavkDXBwCIwWKHvd491d7b39e6bZ3w/2LnJ1+JOcMAAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAAuIwAALiMBeKU/dgAAAAd0SU1FB+ULCQQQOZJLbI8AAAAZdEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVBXgQ4XAAALtklEQVR42u2dfWxTVR/Hv5uAFDplzsyNFoldCq4LBUYUdTrIwjSLIYZoB3+YwR9CBpsmsGiM2TSghhgJM74QwyKCia8gM2FhWZbgEOdwb2iZYxlkY27dsJ1roaV7uV3P84eR56n3jvXt9lnn95P0j5313HNO72c9v3vu79wlpKenCxCiEolut5ufAlGFoaEhJAIAJSNqyAXgL8EoGVFDrgDBKBmJtlwywSgZiaZcioJRMhItuaYUjJKRaMh1W8EoGYlUrmkFo2QkErmCEoySkXDlClowSkbCkQsAErRabUj3Iinav5uEhISQ3p/Ij4yoCQUjFIxQMEIoGKFghIIRQsEIBSMUjBAKRigYoWCEUDBCwQihYISCEQpGCAUjFIxQMEIoGKFghIIRQsEIBSOEghEKRigYIRSMUDBCwQihYISCEQpGCAUjFIxQMEIoGKFghFAwQsEIBSOEghEKRigYIWEzR60D+/1+3HHHHdO+LykpCUuWLEFycjJ0Oh3S0tKQnp4OvV4PnU6HJUuWYOnSpZg7d27U+vbZZ59h69atAWXHjh1DUVERjYgXwYLF7Xajs7Pztu8xm83YsWMHHn30UZjNZsyZM4dnjlNk9LBarSgtLcWaNWuwZcsWnDt3Dj6fj2ePgkWfb7/9Frm5uSgpKcHg4CDPIAX7LxaLBUII2UuSJHi9Xly/fh39/f345ZdfcPr0abz22mtISkpSPNbhw4fxxBNPoK2tjWdxBqPa/+xWCvItFgu++eabkDro9Xpx/vx5vPfeezh16pTie3788Ufk5OTwbMZCmNn2P7sXLFiAvLw8nDx5EnV1dTAYDLL3FBQU4NKlSzz7jMEiuNydMwdPPvkkzp49i6efflr2rbp9+3Y4nU6eUS5TRIZer8enn36KwsJCNDQ03CpvbGzEkSNHUFZWpnofRkdHce3aNdhsNgwMDKC/vx9XrlyBzWZDf38/PB4PjEYjUlNTYTQaYTQakZGRAZPJhIULF0a1L+Pj47h48SLa2trQ3NyM1tZWALjV7qpVq7By5UoYjcag1iWjjlarFaG8gmVyclIACHhZLBYRLbq6umTHByC6urqmrdvR0SGr19HREVS75eXliu0G80pNTRWHDh0SIyMjEY9fkiRx5swZkZOTE1TbmzZtEmfPnhXNzc2y3zkcjqDbDXXMcXuraPny5fj4449l5SdOnFC13Z9//jnsuna7Hbt27cL69etx8eLFsI8zPDyM4uJi5OXlobGxMag61dXVWLduHR5++GHGYMHy7LPPysrKy8vhcDhmdL+tVis2bNgQ1oWJzWZDUVERPvnkEwb5anPvvffirbfekpV3dHTEpP1Nmzbh6NGjaGpqQl9fH9xuNyRJgs/ng9vthsPhwKVLl3D8+HHZMordbkdFRQXGx8eDbs/j8WDnzp2ora0NKE9KSkJVVRU6OzvhcrkgSRImJibgcrnQ3d2NmpoalJaW/n9OUrzGYH/T0NAga+ftt99WLQbbtWuXOHnypLDZbCH10+VyibKyMlm7DQ0NQdX3+/3inXfekdXftm2b6O/vD+oYV69eFa+//npMY7C4F8xms8nayc/PV02wSBgZGREmkymg3b179wZV99dff5X1+fnnnxculyukPtTV1THID4V77rlHVlZfXw+PxzPj+pqcnCybqj766CNMTk5OW/fo0aOysr179+Luu+9mDKYm8+fPR35+vmK8MhPJyMiQxWJer/e2dS5fvozKysqAsg8++EDxrgYFU4H77rtPVjY2NjYj+6rVamVl0wmmtDSyYcMGruTHCqWMC0mSYtoHIQScTiccDgecTiecTif+/PNPOBwOjIyMwG63w2azoaWlRVZ3uiny+++/D/h52bJlMBqNFCxWKE2H8+bNU71dr9cLq9WKpqYmVFdX49y5c1FvY2xsDEeOHJEtj/xfbvv8WwW7du2aYmymptA1NTV444030N3drerYbty4ISt78MEH4+bcxL1g4+PjqK+vl5XfddddqrTX3d2Nl156CXV1dTEZ382bN4MKCSiYSoyMjMjKLBYLNBpN1Nvq6upCfn4+BgYGFH9vMBjw3HPPITMzE4sXL0ZycjK0Wi20Wi0WLlwIjUaD9vZ2PP7440G3qbT3YMGCBRQsVvT09MjK1q1bp8pUtWPHDkW5Xn31VWzZsgWZmZnTxn6hZoQqxVp+v5+CxYqmpiZZ2dq1a6PeTm1trSyIT01NxfHjx5Gbm6va+JRiyZm6BDPrBHO5XNi3b59smsrMzIxqO5OTkzh8+LCidNnZ2aqO8c4771Qcd7wQ1wutp06dkm1CqaioiHrWqMPhwJkzZwLK9uzZo7pcf1+spKamBpRdvnyZgqlNb28vSkpKZFdXBQUFMbmQyMvLi8k4586di82bN8u+OeNl43FcCuZ0OlFWVib79qqqqlK8bRQpSjFPcnJyzMa7Zs2agJ+tVit6e3spmBrY7XaUlpaiuro6oLywsBDPPPOMKm0qXRnG8lbUQw89JCtTWvsLhr8ybiiYYqDd2NiIgoICfPHFFwG/M5lMOHjwoGqr90oLm319fWGdXKVllelYvny5bKteSUlJyH1oa2vDm2++GdsTN9MTDkdHR0VLS4vYunWrYkKbXq8XVqs1pGOGmnA4MTEhSxTMy8sTo6OjQbd548YNsX//fsUxBJMdq5QouHHjRjE4ODht3YGBAXHgwIEpkwJnfUarJEnC6/WK69evC5vNJqxWq6ivrxf79+8XBoNhys6bzWbR2dkZsrThZLR++OGHsjqHDh0SkiTdtp7P5xMNDQ233V4WjGCSJImdO3cq/oF9+eWXoqenR3g8HuHz+cTNmzfF0NCQ+OGHH8S+ffumlWDWCBbN1+7du4Xdbg8rdTkcwQYHBxX78eKLL4rm5mYxPDwsJiYmhN/vF16vV/T19Yna2lpRWFg47ViCze+32WxB74PEFPsyi4uLZeXDw8MUDP+Th97U1CR8Pl/YufHh5uTX1NRE1PeysjLx9ddfhy3Y3xs3HnnkkZDbtlgsoqenR3Gqdbvd/27BTCaTqKysFK2trRGJFalgfr9fHDt2LKwxnDhxQkiSJBobGyMSTAghnE6nOHjwYNCf3XfffSe8Xu+Usdx003wkgs2IW0UGgwEpKSnQ6/VIS0vD4sWLodPpoNfrcf/99+OBBx6ISQLhdCQkJKCoqAgZGRkoLy8PeDbGVBw4cACbN2+GXq+PWj8WLVqE3bt3o7CwEO3t7Th//jyuXLmC1tZWLFq0CGazGStXrsTq1auRnZ0dcBX8z32YJpNJ1UeSqnbkxMTEmK+5BEtWVlZEfcvJycHp06fR0tKCn376Ce3t7Whra0N6ejqMRiOys7OxYsUKmM1m2a6nxx57LGqfi06ng06nw8aNG4Ou88/7mEq74+NCsNmORqNBbm6uqpkUatDe3h7w86pVq9T91lfrCYdk5vHHH38gLS0toKyjowNZWVkhhQmz/l4kCR2/34+qqirZ9Kh2fj8FiyMuXLiAd999FxcuXAgp6XB0dBTvv/8+KioqAsqLi4tV353EGCyOEELglVdeuXXlvX37dqxevRoZGRlISUmBRqPBvHnzIEkSxsbGMDQ0hN9++w2VlZWy54jt2bMH69evV//KmzFYfAXo/0zdCYennnoKn3/+OVJSUsJaquEUSabk5ZdfxldffRWWXJwiZzkajQbLli0La7Pvtm3b8MILL2Dt2rUx/V9PnCLjDJ/Pd+vJ1r29vejr60NPTw+uXr2K33//HfPnz0dWVhbS0tJgMBiwYsUKGAwGLF26FImJkU9YoU6RFIwwBiPxCwUjFIxQMEIoGKFghIIRQsEIBSMUjBAKRigYoWCEUDBCwQihYISCEQpGCAUjFIxQMEIoGKFghIIRQsEIBSOEghEKRigYIRSMUDBCwQihYGTmEPLDOkN9wh3hN1jQeDwefmJEHcEoF1FNMMpFVBOMchHVBKNcRDXBKBdRTTDKRVQTjHIR1QSjXEQ1wSgXUU0wykXU4j9FHbHilbdcDQAAAABJRU5ErkJggg==
+    mediatype: image/png
   install:
     spec:
       clusterPermissions:
       - rules:
-        - apiGroups:
-          - apps
-          resources:
-          - deployments
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - apps
-          resources:
-          - deployments/status
-          verbs:
-          - get
         - apiGroups:
           - ""
           resources:
@@ -138,7 +124,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: docker.io/kgibm/containerdiagoperator:0.223.20211019
+                image: docker.io/kgibm/containerdiagoperator:0.231.20211108
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -221,4 +207,4 @@ spec:
   provider:
     name: kevin.grigorenko@us.ibm.com
     url: https://github.com/kgibm/containerdiagoperator
-  version: 0.223.20211019
+  version: 0.231.20211108

@@ -53,7 +53,7 @@ import (
 	"encoding/json"
 )
 
-const OperatorVersion = "0.230.20211102"
+const OperatorVersion = "0.231.20211108"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
