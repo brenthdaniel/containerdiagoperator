@@ -54,7 +54,7 @@ import (
 	"encoding/json"
 )
 
-const OperatorVersion = "0.243.20211115"
+const OperatorVersion = "0.246.20211115"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -415,7 +415,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 			logger.Info(fmt.Sprintf("targetObject: %+v", targetObject))
 
 			pod := &corev1.Pod{}
-			err := r.Get(context.Background(), client.ObjectKey{
+			err := r.Get(ctx, client.ObjectKey{
 				Namespace: targetObject.Namespace,
 				Name:      targetObject.Name,
 			}, pod)
@@ -773,6 +773,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		"/usr/bin/sh",
 		"/usr/bin/kill",
 		"/usr/bin/pkill",
+		"/usr/bin/ls",
 	} {
 		ok := r.ProcessInstallCommand(command, filesToTar, containerDiagnostic, logger)
 		if !ok {
@@ -1005,7 +1006,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			command := step.Arguments[0]
 			arguments := ""
 
-			spaceIndex := strings.Index(command, " ")
+			spaceIndex := strings.Index(strings.TrimSpace(command), " ")
 			if spaceIndex != -1 {
 				arguments = command[spaceIndex+1:]
 				command = command[:spaceIndex]
@@ -1015,16 +1016,16 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 			for index, arg := range step.Arguments {
 				if index > 0 {
-
-					if arg == "&" && index == len(arguments)-1 {
-						background = true
-					} else {
-						if len(arguments) > 0 {
-							arguments += " "
-						}
-						arguments += arg
+					if len(arguments) > 0 {
+						arguments += " "
 					}
+					arguments += arg
 				}
+			}
+
+			if strings.HasSuffix(arguments, " &") {
+				background = true
+				arguments = arguments[:len(arguments)-2]
 			}
 
 			// Echo a simple prolog to the output file including free disk space
