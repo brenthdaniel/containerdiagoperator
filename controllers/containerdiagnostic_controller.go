@@ -54,7 +54,7 @@ import (
 	"encoding/json"
 )
 
-const OperatorVersion = "0.237.20211115"
+const OperatorVersion = "0.239.20211115"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -674,7 +674,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Could not create local scratchspace in %s: %+v", localScratchSpaceDirectory, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		return
 	}
 
@@ -684,7 +684,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 	if !ok {
 		// The error will have been logged within the above function.
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -769,12 +769,14 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		"/usr/bin/df",
 		"/usr/bin/awk",
 		"/usr/bin/ldd",
+		"/usr/bin/bash",
+		"/usr/bin/sh",
 	} {
 		ok := r.ProcessInstallCommand(command, filesToTar, containerDiagnostic, logger)
 		if !ok {
 			// The error will have been logged within the above function.
 			// We don't stop processing other pods/containers, just return. If this is the
-			// only error, status will show as error; othewrise, as mixed
+			// only error, status will show as error; otherwise, as mixed
 			Cleanup(logger, localScratchSpaceDirectory)
 			return
 		}
@@ -806,7 +808,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 							if !ok {
 								// The error will have been logged within the above function.
 								// We don't stop processing other pods/containers, just return. If this is the
-								// only error, status will show as error; othewrise, as mixed
+								// only error, status will show as error; otherwise, as mixed
 								Cleanup(logger, localScratchSpaceDirectory)
 								return
 							}
@@ -820,7 +822,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 							r.SetStatus(StatusError, fmt.Sprintf("Error writing local script file %s error: %+v", command, err), containerDiagnostic, logger)
 
 							// We don't stop processing other pods/containers, just return. If this is the
-							// only error, status will show as error; othewrise, as mixed
+							// only error, status will show as error; otherwise, as mixed
 							Cleanup(logger, localScratchSpaceDirectory)
 							return
 						}
@@ -831,7 +833,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 							r.SetStatus(StatusError, fmt.Sprintf("Error reading file %s error: %+v", sourceScript, err), containerDiagnostic, logger)
 
 							// We don't stop processing other pods/containers, just return. If this is the
-							// only error, status will show as error; othewrise, as mixed
+							// only error, status will show as error; otherwise, as mixed
 							Cleanup(logger, localScratchSpaceDirectory)
 							return
 						}
@@ -926,13 +928,20 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 					} else {
 
-						// Normal command from /usr/bin/
+						// First try sbin because it's more likely in bin and if both don't exist
+						// then that will be the error message
 
-						ok := r.ProcessInstallCommand("/usr/bin/"+command, filesToTar, containerDiagnostic, logger)
+						commandPath := "/usr/sbin/" + command
+						commandExists, _ := DoesFileExist(commandPath)
+						if !commandExists {
+							commandPath = "/usr/bin/" + command
+						}
+
+						ok := r.ProcessInstallCommand(commandPath, filesToTar, containerDiagnostic, logger)
 						if !ok {
 							// The error will have been logged within the above function.
 							// We don't stop processing other pods/containers, just return. If this is the
-							// only error, status will show as error; othewrise, as mixed
+							// only error, status will show as error; otherwise, as mixed
 							Cleanup(logger, localScratchSpaceDirectory)
 							return
 						}
@@ -950,7 +959,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				r.SetStatus(StatusError, fmt.Sprintf("Run command must have arguments including the binary name"), containerDiagnostic, logger)
 
 				// We don't stop processing other pods/containers, just return. If this is the
-				// only error, status will show as error; othewrise, as mixed
+				// only error, status will show as error; otherwise, as mixed
 				Cleanup(logger, localScratchSpaceDirectory)
 				return
 			}
@@ -972,7 +981,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				r.SetStatus(StatusError, fmt.Sprintf("Error writing local execute.sh file %s error: %+v", localExecuteScript, err), containerDiagnostic, logger)
 
 				// We don't stop processing other pods/containers, just return. If this is the
-				// only error, status will show as error; othewrise, as mixed
+				// only error, status will show as error; otherwise, as mixed
 				Cleanup(logger, localScratchSpaceDirectory)
 				return
 			}
@@ -1052,7 +1061,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				r.SetStatus(StatusError, fmt.Sprintf("Package command must have arguments including the files to package"), containerDiagnostic, logger)
 
 				// We don't stop processing other pods/containers, just return. If this is the
-				// only error, status will show as error; othewrise, as mixed
+				// only error, status will show as error; otherwise, as mixed
 				Cleanup(logger, localScratchSpaceDirectory)
 				return
 			}
@@ -1083,7 +1092,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Error writing local zip.sh file %s error: %+v", localZipScript, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -1120,7 +1129,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Error writing local clean.sh file %s error: %+v", localCleanScript, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -1161,7 +1170,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		if err != nil {
 			// The error will have been logged within the above function.
 			// We don't stop processing other pods/containers, just return. If this is the
-			// only error, status will show as error; othewrise, as mixed
+			// only error, status will show as error; otherwise, as mixed
 			Cleanup(logger, localScratchSpaceDirectory)
 			return
 		}
@@ -1174,7 +1183,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			r.SetStatus(StatusError, fmt.Sprintf("Error reading tar file %s error: %+v", localTarFile, err), containerDiagnostic, logger)
 
 			// We don't stop processing other pods/containers, just return. If this is the
-			// only error, status will show as error; othewrise, as mixed
+			// only error, status will show as error; otherwise, as mixed
 			Cleanup(logger, localScratchSpaceDirectory)
 			return
 		}
@@ -1193,7 +1202,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			r.SetStatus(StatusError, fmt.Sprintf("Error uploading tar file to pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
 
 			// We don't stop processing other pods/containers, just return. If this is the
-			// only error, status will show as error; othewrise, as mixed
+			// only error, status will show as error; otherwise, as mixed
 			Cleanup(logger, localScratchSpaceDirectory)
 			return
 		}
@@ -1237,7 +1246,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				// TODO run clean.sh
 
 				// We don't stop processing other pods/containers, just return. If this is the
-				// only error, status will show as error; othewrise, as mixed
+				// only error, status will show as error; otherwise, as mixed
 				Cleanup(logger, localScratchSpaceDirectory)
 				return
 			}
@@ -1268,7 +1277,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Error running 'zip' step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -1284,7 +1293,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Error opening tar file %s error: %+v", localDownloadedTarFile, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -1304,7 +1313,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Error downloading %s from pod: %s container: %s error: %+v for %v", remoteZipFile, pod.Name, container.Name, err, args), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -1318,7 +1327,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Could not untar %s: %+v %s", localDownloadedTarFile, err, outputStr), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -1333,7 +1342,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Could not find local zip file: %s error: %+v", localZipFile, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -1347,7 +1356,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Could not create permanent output space in %s: %+v", permdir, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -1358,7 +1367,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		r.SetStatus(StatusError, fmt.Sprintf("Could not copy file file to permanent directory %s: %+v", permdir, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		Cleanup(logger, localScratchSpaceDirectory)
 		return
 	}
@@ -1381,7 +1390,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				r.SetStatus(StatusError, fmt.Sprintf("Error running clean step on pod: %s container: %s error: %+v", pod.Name, container.Name, err), containerDiagnostic, logger)
 
 				// We don't stop processing other pods/containers, just return. If this is the
-				// only error, status will show as error; othewrise, as mixed
+				// only error, status will show as error; otherwise, as mixed
 				Cleanup(logger, localScratchSpaceDirectory)
 				return
 			}
@@ -1555,7 +1564,7 @@ func (r *ContainerDiagnosticReconciler) EnsureDirectoriesOnContainer(ctx context
 		r.SetStatus(StatusError, fmt.Sprintf("Error executing mkdir in container: %+v", err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		return "", false
 	}
 
@@ -1571,7 +1580,7 @@ func (r *ContainerDiagnosticReconciler) ExecuteLocalCommand(logger *CustomLogger
 		r.SetStatus(StatusError, fmt.Sprintf("Error executing %v %v: %+v", command, arguments, err), containerDiagnostic, logger)
 
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		return outputBytes, err
 	}
 
@@ -1584,7 +1593,7 @@ func (r *ContainerDiagnosticReconciler) FindSharedLibraries(logger *CustomLogger
 	outputBytes, err := r.ExecuteLocalCommand(logger, containerDiagnostic, "ldd", command)
 	if err != nil {
 		// We don't stop processing other pods/containers, just return. If this is the
-		// only error, status will show as error; othewrise, as mixed
+		// only error, status will show as error; otherwise, as mixed
 		return nil, false
 	}
 
