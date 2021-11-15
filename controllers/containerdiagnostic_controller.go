@@ -54,7 +54,7 @@ import (
 	"encoding/json"
 )
 
-const OperatorVersion = "0.239.20211115"
+const OperatorVersion = "0.243.20211115"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -771,6 +771,8 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 		"/usr/bin/ldd",
 		"/usr/bin/bash",
 		"/usr/bin/sh",
+		"/usr/bin/kill",
+		"/usr/bin/pkill",
 	} {
 		ok := r.ProcessInstallCommand(command, filesToTar, containerDiagnostic, logger)
 		if !ok {
@@ -790,7 +792,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 					// Specifically known and pre-packaged scripts
 					if command == "linperf.sh" {
-						// Add prereqs that aren't already installed above
+						// Add prereqs that might not be installed above
 						for _, command := range []string{
 							"/usr/bin/whoami",
 							"/usr/bin/netstat",
@@ -997,22 +999,7 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 			}
 
 			// Echo outputfile directly to stdout without redirecting to the output file because a user executing this script wants to know where the output goes
-			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"Writing output to %s\"", remoteOutputFile), false, "")
-
-			// Echo a simple prolog to the output file including free disk space
-			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
-			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"containerdiag: Started execution\"", true, remoteOutputFile)
-			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
-			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "df", "--block-size=MiB --print-type", false, "")
-
-			// The first thing we do is check disk space in our target directory and bail if there isn't enough
-			dfcmd := GetExecutionCommand(containerTmpFilesPrefix, "df", "")
-			awkcmd := GetExecutionCommand(containerTmpFilesPrefix, "awk", "")
-			echocmd := GetExecutionCommand(containerTmpFilesPrefix, "echo", "")
-
-			localExecuteFile.WriteString(fmt.Sprintf("DFOUTPUT=\"$(%s --block-size=MiB --output=avail %s | %s 'BEGIN {avail = -1;} NR == 2 {gsub(/M.*/, \"\"); avail = 0 + $1;} END {printf(\"%%s\", avail);}')\"\necho \"Disk space free in %s: ${DFOUTPUT} MB\"\n", dfcmd, containerTmpFilesPrefix, awkcmd, containerTmpFilesPrefix))
-
-			localExecuteFile.WriteString(fmt.Sprintf("if [ \"${DFOUTPUT}\" = \"\" ]; then\n  DFOUTPUT=\"0\";\nfi\nif [ \"${DFOUTPUT}\" -lt \"%d\" ]; then\n  %s \"ERROR: The available disk space in %s of ${DFOUTPUT} MB is insufficient (%d MB required).\";\n  exit 1;\nfi\n", containerDiagnostic.Spec.MinDiskSpaceFreeMB, echocmd, containerTmpFilesPrefix, containerDiagnostic.Spec.MinDiskSpaceFreeMB))
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"Writing output to %s\"", remoteOutputFile), false, "", false)
 
 			// Build the command execution with arguments
 			command := step.Arguments[0]
@@ -1024,14 +1011,36 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 				command = command[:spaceIndex]
 			}
 
+			background := false
+
 			for index, arg := range step.Arguments {
 				if index > 0 {
-					if len(arguments) > 0 {
-						arguments += " "
+
+					if arg == "&" && index == len(arguments)-1 {
+						background = true
+					} else {
+						if len(arguments) > 0 {
+							arguments += " "
+						}
+						arguments += arg
 					}
-					arguments += arg
 				}
 			}
+
+			// Echo a simple prolog to the output file including free disk space
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "date", "", true, remoteOutputFile, false)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"containerdiag: Started execution of %s in $(%s)\"", command, GetExecutionCommand(containerTmpFilesPrefix, "pwd", "")), true, remoteOutputFile, false)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile, false)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "df", "--block-size=MiB --print-type", false, "", false)
+
+			// The first thing we do is check disk space in our target directory and bail if there isn't enough
+			dfcmd := GetExecutionCommand(containerTmpFilesPrefix, "df", "")
+			awkcmd := GetExecutionCommand(containerTmpFilesPrefix, "awk", "")
+			echocmd := GetExecutionCommand(containerTmpFilesPrefix, "echo", "")
+
+			localExecuteFile.WriteString(fmt.Sprintf("DFOUTPUT=\"$(%s --block-size=MiB --output=avail %s | %s 'BEGIN {avail = -1;} NR == 2 {gsub(/M.*/, \"\"); avail = 0 + $1;} END {printf(\"%%s\", avail);}')\"\necho \"Disk space free in %s: ${DFOUTPUT} MB\"\n", dfcmd, containerTmpFilesPrefix, awkcmd, containerTmpFilesPrefix))
+
+			localExecuteFile.WriteString(fmt.Sprintf("if [ \"${DFOUTPUT}\" = \"\" ]; then\n  DFOUTPUT=\"0\";\nfi\nif [ \"${DFOUTPUT}\" -lt \"%d\" ]; then\n  %s \"ERROR: The available disk space in %s of ${DFOUTPUT} MB is insufficient (%d MB required).\";\n  exit 1;\nfi\n", containerDiagnostic.Spec.MinDiskSpaceFreeMB, echocmd, containerTmpFilesPrefix, containerDiagnostic.Spec.MinDiskSpaceFreeMB))
 
 			// Execute the command with arguments
 			if command == "linperf.sh" {
@@ -1040,13 +1049,13 @@ func (r *ContainerDiagnosticReconciler) RunScriptOnContainer(ctx context.Context
 
 				remoteFilesToPackage[filepath.Join(containerTmpFilesPrefix, "linperf_RESULTS.tar.gz")] = true
 			} else {
-				WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, command, arguments, true, remoteOutputFile)
+				WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, command, arguments, true, remoteOutputFile, background)
 			}
 
 			// Echo a simple epilog to the output file
-			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile)
-			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "date", "", true, remoteOutputFile)
-			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"containerdiag: Finished execution\"", true, remoteOutputFile)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", "\"\"", true, remoteOutputFile, false)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "date", "", true, remoteOutputFile, false)
+			WriteExecutionLine(localExecuteFile, containerTmpFilesPrefix, "echo", fmt.Sprintf("\"containerdiag: Finished execution of %s\"", command), true, remoteOutputFile, false)
 
 			localExecuteFile.Close()
 
@@ -1421,12 +1430,16 @@ func CopyFile(src string, dest string) error {
 	return err
 }
 
-func WriteExecutionLine(fileWriter *os.File, containerTmpFilesPrefix string, command string, arguments string, redirectOutput bool, outputFile string) {
+func WriteExecutionLine(fileWriter *os.File, containerTmpFilesPrefix string, command string, arguments string, redirectOutput bool, outputFile string, background bool) {
 	var redirectStr string = ""
+	var backgroundStr string = ""
 	if redirectOutput {
-		redirectStr = fmt.Sprintf(">> %s 2>&1", outputFile)
+		redirectStr = fmt.Sprintf(" >> %s 2>&1", outputFile)
 	}
-	fileWriter.WriteString(fmt.Sprintf("%s %s\n", GetExecutionCommand(containerTmpFilesPrefix, command, arguments), redirectStr))
+	if background {
+		backgroundStr = " &"
+	}
+	fileWriter.WriteString(fmt.Sprintf("%s%s%s\n", GetExecutionCommand(containerTmpFilesPrefix, command, arguments), redirectStr, backgroundStr))
 }
 
 func GetExecutionCommand(containerTmpFilesPrefix string, command string, arguments string) string {

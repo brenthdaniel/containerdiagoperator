@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/kgibm/containerdiagoperator
-  newTag: 0.239.20211115
+  newTag: 0.243.20211115
