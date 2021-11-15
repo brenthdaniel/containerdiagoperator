@@ -53,7 +53,7 @@ import (
 	"encoding/json"
 )
 
-const OperatorVersion = "0.231.20211108"
+const OperatorVersion = "0.234.20211115"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -426,6 +426,42 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 				}
 			}
 		}
+	}
+
+	if containerDiagnostic.Spec.TargetSelectors != nil {
+		clientset, err := kubernetes.NewForConfig(r.Config)
+		if err != nil {
+			r.SetStatus(StatusError, fmt.Sprintf("Could not create client: %+v", err), containerDiagnostic, logger)
+			return ctrl.Result{}, err
+		}
+
+		for _, targetSelector := range containerDiagnostic.Spec.TargetSelectors {
+			logger.Info(fmt.Sprintf("targetSelector: %+v", targetSelector))
+
+			// https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/pod.go#L43
+			selector := metav1.FormatLabelSelector(&targetSelector)
+
+			if err != nil {
+				r.SetStatus(StatusError, fmt.Sprintf("Could not process LabelSelector: %+v", err), containerDiagnostic, logger)
+				return ctrl.Result{}, err
+			}
+
+			allpods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{LabelSelector: selector})
+
+			if err != nil {
+				r.SetStatus(StatusError, fmt.Sprintf("Could not list all pods: %+v", err), containerDiagnostic, logger)
+				return ctrl.Result{}, err
+			}
+
+			for _, pod := range allpods.Items {
+				r.RunScriptOnPod(ctx, req, containerDiagnostic, logger, &pod, &contextTracker)
+			}
+		}
+	}
+
+	if contextTracker.visited == 0 {
+		r.SetStatus(StatusError, fmt.Sprintf("You must specify at least one target pod"), containerDiagnostic, logger)
+		return ctrl.Result{}, nil
 	}
 
 	logger.Info("CommandScript: walking " + localPermanentDirectory)

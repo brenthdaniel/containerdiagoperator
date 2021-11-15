@@ -23,6 +23,7 @@ package v1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -97,6 +98,13 @@ func (in *ContainerDiagnosticSpec) DeepCopyInto(out *ContainerDiagnosticSpec) {
 		in, out := &in.TargetObjects, &out.TargetObjects
 		*out = make([]corev1.ObjectReference, len(*in))
 		copy(*out, *in)
+	}
+	if in.TargetSelectors != nil {
+		in, out := &in.TargetSelectors, &out.TargetSelectors
+		*out = make([]metav1.LabelSelector, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	if in.Steps != nil {
 		in, out := &in.Steps, &out.Steps

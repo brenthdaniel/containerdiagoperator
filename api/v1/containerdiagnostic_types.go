@@ -48,6 +48,11 @@ type ContainerDiagnosticSpec struct {
 	// +kubebuilder:validation:Optional
 	TargetObjects []corev1.ObjectReference `json:"targetObjects"`
 
+	// Optional. A list of LabelSelectors.
+	// See https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/label-selector/
+	// +kubebuilder:validation:Optional
+	TargetSelectors []metav1.LabelSelector `json:"targetSelectors"`
+
 	// A list of steps to perform for the specified Command.
 	// +kubebuilder:validation:Optional
 	Steps []ContainerDiagnosticStep `json:"steps"`

@@ -17,10 +17,9 @@ metadata:
   name: example
 spec:
   command: script
-  targetObjects:
-  - kind: Pod
-    name: $PODNAME
-    namespace: $PODNAMESPACE
+  targetSelectors:
+  - matchLabels:
+      app: liberty1
   steps:
   - command: install
     arguments:
@@ -41,10 +40,9 @@ metadata:
   namespace: containerdiagoperator-system
 spec:
   command: script
-  targetObjects:
-  - kind: Pod
-    name: liberty1-774c5fccc6-f7mjt
-    namespace: testns1
+  targetSelectors:
+  - matchLabels:
+      app: liberty1
   steps:
   - command: install
     arguments:
@@ -190,10 +188,6 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
    make build
    ```
-1. Export the Operator version to the shell environment:
-   ```
-   export VERSION="$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
-   ```
 1. The default build engine is `podman`. If using `docker`:
    ```
    export CONTAINER_ENGINE=docker
@@ -209,7 +203,7 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
        ```
     1. Build and push:
        ```
-       make docker-build docker-push IMG="docker.io/kgibm/containerdiagoperator:${VERSION}"
+       make docker-build docker-push IMG="docker.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
        ```
 1. If pushing to the IBM Container Registry at `icr.io/containerdiag/containerdiagoperator`:
     1. Log into IBM Cloud with [`ibmcloud`](https://cloud.ibm.com/docs/cli?topic=cli-getting-started) in the `us-east` region:
@@ -226,11 +220,11 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
        ```
     1. Build and push:
        ```
-       make docker-build docker-push IMG="icr.io/containerdiag/containerdiagoperator:${VERSION}"
+       make docker-build docker-push IMG="icr.io/containerdiag/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
        ```
 1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context). For example:
    ```
-   make deploy IMG="docker.io/kgibm/containerdiagoperator:${VERSION}"
+   make deploy IMG="docker.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
    ```
 1. List operator pods:
    ```
@@ -300,6 +294,29 @@ This will install into your [current namespace](https://publib.boulder.ibm.com/h
       ```
 
 ## Appendix
+
+##### YAML Example (top -H) (targetObjects)
+
+```
+apiVersion: diagnostic.ibm.com/v1
+kind: ContainerDiagnostic
+metadata:
+  name: example
+spec:
+  command: script
+  targetObjects:
+  - kind: Pod
+    name: $PODNAME
+    namespace: $PODNAMESPACE
+  steps:
+  - command: install
+    arguments:
+    - top
+  - command: execute
+    arguments:
+    - top -b -H -d 5 -n 2
+  - command: clean
+```
 
 ### JSON Example (top -H)
 
