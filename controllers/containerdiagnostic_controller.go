@@ -403,6 +403,11 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 
 	contextTracker := ContextTracker{localPermanentDirectory: localPermanentDirectory}
 
+	if containerDiagnostic.Spec.TargetObjects == nil && containerDiagnostic.Spec.TargetLabelSelectors == nil {
+		r.SetStatus(StatusError, fmt.Sprintf("You must specify targetLabelSelectors and/or targetObjects to target a set of pods"), containerDiagnostic, logger)
+		return ctrl.Result{}, nil
+	}
+
 	if containerDiagnostic.Spec.TargetObjects != nil {
 		for _, targetObject := range containerDiagnostic.Spec.TargetObjects {
 
@@ -459,8 +464,8 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 		}
 	}
 
-	if contextTracker.visited == 0 {
-		r.SetStatus(StatusError, fmt.Sprintf("You must specify at least one target pod"), containerDiagnostic, logger)
+	if IsInitialStatus(containerDiagnostic) && contextTracker.visited == 0 {
+		r.SetStatus(StatusError, fmt.Sprintf("The specified targetLabelSelectors and/or targetObjects did not evaluate to any pods"), containerDiagnostic, logger)
 		return ctrl.Result{}, nil
 	}
 
