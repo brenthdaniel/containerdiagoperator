@@ -54,7 +54,7 @@ import (
 	"encoding/json"
 )
 
-const OperatorVersion = "0.246.20211115"
+const OperatorVersion = "0.247.20211115"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -1447,7 +1447,14 @@ func GetExecutionCommand(containerTmpFilesPrefix string, command string, argumen
 	// See https://www.kernel.org/doc/man-pages/online/pages/man8/ld-linux.so.8.html
 	var result string
 	if UseLdLinuxDirect {
-		result = fmt.Sprintf("%s --inhibit-cache --library-path %s %s", filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", "bin", command))
+
+		usrFolder := "bin"
+		commandExists, _ := DoesFileExist("/usr/bin/" + command)
+		if !commandExists {
+			usrFolder = "sbin"
+		}
+
+		result = fmt.Sprintf("%s --inhibit-cache --library-path %s %s", filepath.Join(containerTmpFilesPrefix, "lib64", "ld-linux-x86-64.so.2"), filepath.Join(containerTmpFilesPrefix, "lib64"), filepath.Join(containerTmpFilesPrefix, "usr", usrFolder, command))
 	} else {
 		result = command
 	}
