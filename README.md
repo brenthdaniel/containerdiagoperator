@@ -14,7 +14,7 @@ While we welcome any [bug reports or suggestions](https://github.com/kgibm/conta
 apiVersion: diagnostic.ibm.com/v1
 kind: ContainerDiagnostic
 metadata:
-  name: example
+  name: example1
 spec:
   command: script
   targetLabelSelectors:
@@ -36,8 +36,7 @@ spec:
 apiVersion: diagnostic.ibm.com/v1
 kind: ContainerDiagnostic
 metadata:
-  name: diag1
-  namespace: containerdiagoperator-system
+  name: example2
 spec:
   command: script
   targetLabelSelectors:
@@ -150,6 +149,10 @@ FIELDS:
 
    steps	<[]Object>
      A list of steps to perform for the specified Command.
+
+   targetLabelSelectors	<[]Object>
+     Optional. A list of LabelSelectors. See
+     https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/label-selector/
 
    targetObjects	<[]Object>
      Optional. A list of ObjectReferences. See
