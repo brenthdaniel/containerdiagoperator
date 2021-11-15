@@ -1,0 +1,76 @@
+
+Mon Nov 15 21:17:13 UTC 2021
+
+top - 21:17:13 up 6 days, 22:44,  0 users,  load average: 0.23, 0.26, 0.22
+Tasks:   7 total,   1 running,   6 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  5.8 us,  7.5 sy,  0.0 ni, 85.8 id,  0.0 wa,  0.0 hi,  0.0 si,  0.8 st
+MiB Mem :  15645.9 total,   7386.8 free,   2862.9 used,   5396.2 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.  12339.0 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+      1 default   20   0 8918916 230884  64028 S  60.0   1.4   0:29.30 /opt/ja+
+    321 default   20   0   14848   3324   3028 S   0.0   0.0   0:00.00 /bin/sh+
+    337 default   20   0   14848   3204   2876 S   0.0   0.0   0:00.01 /bin/sh+
+    408 default   20   0   13092   4096   3556 R   0.0   0.0   0:00.00 /tmp/co+
+    420 default   20   0   13224   3960   3416 S   0.0   0.0   0:00.00 /tmp/co+
+    429 default   20   0   10228   3652   3232 S   0.0   0.0   0:00.00 /tmp/co+
+    454 default   20   0    5332    248    204 S   0.0   0.0   0:00.00 /tmp/co+
+
+top - 21:18:13 up 6 days, 22:45,  0 users,  load average: 0.18, 0.24, 0.21
+Tasks:   7 total,   1 running,   6 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  2.3 us,  1.9 sy,  0.0 ni, 95.5 id,  0.0 wa,  0.0 hi,  0.1 si,  0.2 st
+MiB Mem :  15645.9 total,   7380.9 free,   2865.6 used,   5399.4 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.  12336.4 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+      1 default   20   0 8902532 230888  64028 S   0.5   1.4   0:29.63 /opt/ja+
+    420 default   20   0   13224   3960   3416 S   0.0   0.0   0:00.03 /tmp/co+
+    337 default   20   0   14848   3204   2876 S   0.0   0.0   0:00.02 /bin/sh+
+    321 default   20   0   14848   3324   3028 S   0.0   0.0   0:00.00 /bin/sh+
+    408 default   20   0   13092   4096   3556 R   0.0   0.0   0:00.00 /tmp/co+
+    429 default   20   0   10228   3652   3232 S   0.0   0.0   0:00.00 /tmp/co+
+    496 default   20   0    5332    248    204 S   0.0   0.0   0:00.00 /tmp/co+
+
+top - 21:19:13 up 6 days, 22:46,  0 users,  load average: 0.22, 0.24, 0.21
+Tasks:   7 total,   1 running,   6 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  2.1 us,  1.7 sy,  0.0 ni, 95.7 id,  0.0 wa,  0.0 hi,  0.0 si,  0.4 st
+MiB Mem :  15645.9 total,   7360.1 free,   2883.3 used,   5402.4 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.  12318.7 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+      1 default   20   0 8902532 230888  64028 S   0.5   1.4   0:29.94 /opt/ja+
+    420 default   20   0   13224   3960   3416 S   0.0   0.0   0:00.05 /tmp/co+
+    321 default   20   0   14848   3324   3028 S   0.0   0.0   0:00.00 /bin/sh+
+    337 default   20   0   14848   3204   2876 S   0.0   0.0   0:00.02 /bin/sh+
+    408 default   20   0   13092   4096   3556 R   0.0   0.0   0:00.00 /tmp/co+
+    429 default   20   0   10228   3652   3232 S   0.0   0.0   0:00.00 /tmp/co+
+    538 default   20   0    5332    248    204 S   0.0   0.0   0:00.00 /tmp/co+
+
+top - 21:20:13 up 6 days, 22:47,  0 users,  load average: 0.08, 0.20, 0.19
+Tasks:   7 total,   1 running,   6 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  2.5 us,  2.1 sy,  0.0 ni, 95.1 id,  0.0 wa,  0.0 hi,  0.1 si,  0.3 st
+MiB Mem :  15645.9 total,   7387.6 free,   2852.7 used,   5405.7 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.  12349.3 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+      1 default   20   0 8902532 230888  64028 S   0.5   1.4   0:30.26 /opt/ja+
+    420 default   20   0   13224   3960   3416 S   0.1   0.0   0:00.09 /tmp/co+
+    337 default   20   0   14848   3204   2876 S   0.0   0.0   0:00.03 /bin/sh+
+    429 default   20   0   10228   3652   3232 S   0.0   0.0   0:00.01 /tmp/co+
+    321 default   20   0   14848   3324   3028 S   0.0   0.0   0:00.00 /bin/sh+
+    408 default   20   0   13092   4096   3556 R   0.0   0.0   0:00.00 /tmp/co+
+    580 default   20   0    5332    248    204 S   0.0   0.0   0:00.00 /tmp/co+
+
+top - 21:21:13 up 6 days, 22:48,  0 users,  load average: 0.15, 0.20, 0.19
+Tasks:   6 total,   1 running,   5 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  2.1 us,  1.7 sy,  0.0 ni, 95.9 id,  0.0 wa,  0.0 hi,  0.0 si,  0.3 st
+MiB Mem :  15645.9 total,   7396.3 free,   2840.9 used,   5408.7 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.  12360.6 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+      1 default   20   0 8902532 230900  64028 S   0.7   1.4   0:30.71 /opt/ja+
+    420 default   20   0   13224   3960   3416 S   0.0   0.0   0:00.12 /tmp/co+
+    337 default   20   0   14980   3208   2876 S   0.0   0.0   0:00.04 /bin/sh+
+    321 default   20   0   14848   3324   3028 S   0.0   0.0   0:00.00 /bin/sh+
+    408 default   20   0   13092   4096   3556 R   0.0   0.0   0:00.00 /tmp/co+
+    638 default   20   0    5332    248    204 S   0.0   0.0   0:00.00 /tmp/co+

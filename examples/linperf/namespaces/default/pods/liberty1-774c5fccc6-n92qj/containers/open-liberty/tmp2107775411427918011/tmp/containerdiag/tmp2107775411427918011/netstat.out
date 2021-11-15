@@ -1,0 +1,35 @@
+Mon Nov 15 21:21:24 UTC 2021
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name    
+tcp6       0      0 127.0.0.1:7276          :::*                    LISTEN      1/java              
+tcp6       0      0 127.0.0.1:7286          :::*                    LISTEN      1/java              
+tcp6       0      0 127.0.0.1:55063         :::*                    LISTEN      1/java              
+tcp6       0      0 :::9080                 :::*                    LISTEN      1/java              
+tcp6       0      0 127.0.0.1:2809          :::*                    LISTEN      1/java              
+tcp6       0      0 127.0.0.1:9402          :::*                    LISTEN      1/java              
+tcp6       0      0 :::9443                 :::*                    LISTEN      1/java              
+Active UNIX domain sockets (servers and established)
+Proto RefCnt Flags       Type       State         I-Node   PID/Program name     Path
+unix  2      [ ]         STREAM     CONNECTED     87685    1/java               
+unix  2      [ ]         STREAM     CONNECTED     90261    1/java               
+Active Bluetooth connections (servers and established)
+Proto  Destination       Source            State         PSM DCID   SCID      IMTU    OMTU Security
+Proto  Destination       Source            State     Channel
+
+Mon Nov 15 21:25:25 UTC 2021
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name    
+tcp6       0      0 127.0.0.1:7276          :::*                    LISTEN      1/java              
+tcp6       0      0 127.0.0.1:7286          :::*                    LISTEN      1/java              
+tcp6       0      0 127.0.0.1:55063         :::*                    LISTEN      1/java              
+tcp6       0      0 :::9080                 :::*                    LISTEN      1/java              
+tcp6       0      0 127.0.0.1:2809          :::*                    LISTEN      1/java              
+tcp6       0      0 127.0.0.1:9402          :::*                    LISTEN      1/java              
+tcp6       0      0 :::9443                 :::*                    LISTEN      1/java              
+Active UNIX domain sockets (servers and established)
+Proto RefCnt Flags       Type       State         I-Node   PID/Program name     Path
+unix  2      [ ]         STREAM     CONNECTED     87685    1/java               
+unix  2      [ ]         STREAM     CONNECTED     90261    1/java               
+Active Bluetooth connections (servers and established)
+Proto  Destination       Source            State         PSM DCID   SCID      IMTU    OMTU Security
+Proto  Destination       Source            State     Channel

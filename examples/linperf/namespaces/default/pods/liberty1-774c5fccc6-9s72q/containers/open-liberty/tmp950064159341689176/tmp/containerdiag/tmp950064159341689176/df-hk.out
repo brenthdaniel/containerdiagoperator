@@ -1,0 +1,11 @@
+Filesystem     1K-blocks     Used Available Use% Mounted on
+overlay        261608428 17949180 243659248   7% /
+tmpfs              65536        0     65536   0% /dev
+tmpfs            8010688        0   8010688   0% /sys/fs/cgroup
+shm                65536        0     65536   0% /dev/shm
+tmpfs            8010688    78348   7932340   1% /etc/hostname
+/dev/vda4      261608428 17949180 243659248   7% /etc/hosts
+tmpfs           14870400       20  14870380   1% /run/secrets/kubernetes.io/serviceaccount
+tmpfs            8010688        0   8010688   0% /proc/acpi
+tmpfs            8010688        0   8010688   0% /proc/scsi
+tmpfs            8010688        0   8010688   0% /sys/firmware
