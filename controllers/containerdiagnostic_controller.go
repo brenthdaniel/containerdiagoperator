@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/go-logr/logr"
 	"io"
@@ -29,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -53,7 +54,7 @@ import (
 	"encoding/json"
 )
 
-const OperatorVersion = "0.236.20211115"
+const OperatorVersion = "0.237.20211115"
 
 // Setting this to false doesn't work because of errors such as:
 //   symbol lookup error: .../lib64/libc.so.6: undefined symbol: _dl_catch_error_ptr, version GLIBC_PRIVATE
@@ -198,7 +199,7 @@ func (r *ContainerDiagnosticReconciler) Reconcile(ctx context.Context, req ctrl.
 	containerDiagnostic := &diagnosticv1.ContainerDiagnostic{}
 	err := r.Get(ctx, req.NamespacedName, containerDiagnostic)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
@@ -423,7 +424,7 @@ func (r *ContainerDiagnosticReconciler) CommandScript(ctx context.Context, req c
 				logger.Debug1(fmt.Sprintf("found pod: %+v", pod))
 				r.RunScriptOnPod(ctx, req, containerDiagnostic, logger, pod, &contextTracker)
 			} else {
-				if errors.IsNotFound(err) {
+				if k8serrors.IsNotFound(err) {
 					r.SetStatus(StatusError, fmt.Sprintf("Pod not found: name: %s namespace: %s", targetObject.Name, targetObject.Namespace), containerDiagnostic, logger)
 				} else {
 					logger.Error(err, "Failed to get targetObject")
@@ -1438,11 +1439,28 @@ func AddDirectCallEnvars(localFile *os.File, containerTmpFilesPrefix string) {
 	localFile.WriteString(fmt.Sprintf("export LD_LIBRARY_PATH=%s\n", filepath.Join(containerTmpFilesPrefix, "lib64")))
 }
 
+func DoesFileExist(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	} else if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else {
+		return false, err
+	}
+}
+
 func (r *ContainerDiagnosticReconciler) ProcessInstallCommand(fullCommand string, filesToTar map[string]bool, containerDiagnostic *diagnosticv1.ContainerDiagnostic, logger *CustomLogger) bool {
 
 	fullCommand = filepath.Clean(fullCommand)
 
 	logger.Debug1(fmt.Sprintf("RunScriptOnContainer Processing install command: %s", fullCommand))
+
+	fileExists, err := DoesFileExist(fullCommand)
+	if !fileExists || err != nil {
+		r.SetStatus(StatusError, fmt.Sprintf("Tool %s does not exist", fullCommand), containerDiagnostic, logger)
+		return false
+	}
 
 	filesToTar[fullCommand] = true
 
