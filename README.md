@@ -17,7 +17,7 @@ metadata:
   name: example
 spec:
   command: script
-  targetSelectors:
+  targetLabelSelectors:
   - matchLabels:
       app: liberty1
   steps:
@@ -40,7 +40,7 @@ metadata:
   namespace: containerdiagoperator-system
 spec:
   command: script
-  targetSelectors:
+  targetLabelSelectors:
   - matchLabels:
       app: liberty1
   steps:
@@ -192,35 +192,18 @@ Built with [Operator SDK](https://sdk.operatorframework.io/docs/building-operato
    ```
    export CONTAINER_ENGINE=docker
    ```
-1. If pushing to the [DockerHub registry at docker.io/kgibm/containerdiagoperator](https://hub.docker.com/r/kgibm/containerdiagoperator):
+1. If pushing to the [Quay.io registry at quay.io/kgibm/containerdiagoperator](https://quay.io/repository/kgibm/containerdiagoperator):
     1. If using `podman`:
        ```
-       podman login docker.io
+       podman login quay.io
        ```
     1. If using `docker`:
        ```
-       docker login
+       docker login quay.io
        ```
     1. Build and push:
        ```
-       make docker-build docker-push IMG="docker.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
-       ```
-1. If pushing to the IBM Container Registry at `icr.io/containerdiag/containerdiagoperator`:
-    1. Log into IBM Cloud with [`ibmcloud`](https://cloud.ibm.com/docs/cli?topic=cli-getting-started) in the `us-east` region:
-       ```
-       ibmcloud login --sso -r us-east
-       ```
-    1. If using `podman`, ensure `docker` doesn't exist and then create a symlink to `podman`:
-       ```
-       ln -s $(which podman) $(dirname $(which podman))/docker
-       ```
-    1. Log into the IBM Container Registry:
-       ```
-       ibmcloud cr login
-       ```
-    1. Build and push:
-       ```
-       make docker-build docker-push IMG="icr.io/containerdiag/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
+       make docker-build docker-push IMG="quay.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
        ```
 1. Deploy to the [currently configured cluster](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-kubectl-Cluster_Context). For example:
    ```
@@ -249,9 +232,10 @@ make undeploy
 
 This will install into your [current namespace](https://publib.boulder.ibm.com/httpserv/cookbook/Containers-Kubernetes.html#Containers-Kubernetes-Namespace-Change_current_namespace) which can be anything.
 
+1. If you've done a local build above, first `make undeploy` it.
 1. `export VERSION="$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"`
-1. `export IMG=docker.io/kgibm/containerdiagoperator:${VERSION}`
-1. `export BUNDLE_IMG=docker.io/kgibm/containerdiagoperatorbundle:$VERSION`
+1. `export IMG=quay.io/kgibm/containerdiagoperator:${VERSION}`
+1. `export BUNDLE_IMG=quay.io/kgibm/containerdiagoperatorbundle:$VERSION`
 1. `make build`
 1. `make docker-build docker-push`
 1. `make bundle`
@@ -341,3 +325,36 @@ Listing images...
 Repository                                   Tag              Digest         Namespace       Created          Size     Security status   
 icr.io/containerdiag/containerdiagoperator   0.177.20211012   4a45b147a880   containerdiag   11 minutes ago   188 MB   Scanning...   
 ```
+
+### Building to other registries
+
+1. If pushing to the [DockerHub registry at docker.io/kgibm/containerdiagoperator](https://hub.docker.com/r/kgibm/containerdiagoperator):
+    1. If using `podman`:
+       ```
+       podman login docker.io
+       ```
+    1. If using `docker`:
+       ```
+       docker login
+       ```
+    1. Build and push:
+       ```
+       make docker-build docker-push IMG="docker.io/kgibm/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
+       ```
+1. If pushing to the IBM Container Registry at `icr.io/containerdiag/containerdiagoperator`:
+    1. Log into IBM Cloud with [`ibmcloud`](https://cloud.ibm.com/docs/cli?topic=cli-getting-started) in the `us-east` region:
+       ```
+       ibmcloud login --sso -r us-east
+       ```
+    1. If using `podman`, ensure `docker` doesn't exist and then create a symlink to `podman`:
+       ```
+       ln -s $(which podman) $(dirname $(which podman))/docker
+       ```
+    1. Log into the IBM Container Registry:
+       ```
+       ibmcloud cr login
+       ```
+    1. Build and push:
+       ```
+       make docker-build docker-push IMG="icr.io/containerdiag/containerdiagoperator:$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' controllers/containerdiagnostic_controller.go)"
+       ```

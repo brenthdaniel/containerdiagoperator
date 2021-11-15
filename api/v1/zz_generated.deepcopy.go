@@ -99,8 +99,8 @@ func (in *ContainerDiagnosticSpec) DeepCopyInto(out *ContainerDiagnosticSpec) {
 		*out = make([]corev1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
-	if in.TargetSelectors != nil {
-		in, out := &in.TargetSelectors, &out.TargetSelectors
+	if in.TargetLabelSelectors != nil {
+		in, out := &in.TargetLabelSelectors, &out.TargetLabelSelectors
 		*out = make([]metav1.LabelSelector, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])

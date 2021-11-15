@@ -3,30 +3,40 @@
 # Don't use `set -e` because `make undeploy` might fail if the operator doesn't exist yet
 # set -e
 
+TARGETAPPLABEL="${TARGETAPPLABEL}"
 TARGETCONTAINER="${TARGETCONTAINER}"
 TARGETNAMESPACE="${TARGETNAMESPACE}"
 
-if [ "${TARGETCONTAINER}" = "" ]; then
-  /bin/echo -n "Target container name (TARGETCONTAINER): "
-  read TARGETCONTAINER
+TARGETOBJECTS="[]"
+
+if [ "${TARGETAPPLABEL}" = "" ]; then
+  /bin/echo -n "Target app label (TARGETAPPLABEL): "
+  read TARGETAPPLABEL
+fi
+
+if [ "${TARGETAPPLABEL}" = "" ]; then
   if [ "${TARGETCONTAINER}" = "" ]; then
-    echo "Target container name required."
-    exit 1
+    /bin/echo -n "Target container name (TARGETCONTAINER): "
+    read TARGETCONTAINER
   fi
-fi
 
-if [ "${TARGETNAMESPACE}" = "" ]; then
-  /bin/echo -n "Target container's namespace (TARGETNAMESPACE): "
-  read TARGETNAMESPACE
   if [ "${TARGETNAMESPACE}" = "" ]; then
-    echo "Target container's namespace required."
-    exit 1
+    /bin/echo -n "Target container's namespace (TARGETNAMESPACE): "
+    read TARGETNAMESPACE
   fi
+
+  TARGETOBJECTS="$(printf '[{"kind": "Pod", "name": "%s", "namespace": "%s"}]' "${TARGETCONTAINER}" "${TARGETNAMESPACE}")"
 fi
 
-STEPS='[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 5 -n 6"]}, {"command": "package", "arguments": ["/logs/", "/config/"]}, {"command": "clean"}]'
+STEPS='[{"command": "install", "arguments": ["top"]}, {"command": "execute", "arguments": ["top -b -H -d 5 -n 2"]}, {"command": "package", "arguments": ["/logs/", "/config/"]}, {"command": "clean"}]'
 if [ "${EXECUTE}" = "linperf" ]; then
   STEPS='[{"command": "install", "arguments": ["linperf.sh"]}, {"command": "execute", "arguments": ["linperf.sh"]}, {"command": "package", "arguments": ["/output/javacore*", "/logs/", "/config/"]}, {"command": "clean", "arguments": ["/output/javacore*"]}]'
+fi
+
+TARGETLABELSELECTORS="[]"
+
+if [ "${TARGETAPPLABEL}" != "" ]; then
+  TARGETLABELSELECTORS="$(printf '[{"matchLabels": {"app": "%s"}}]' "${TARGETAPPLABEL}")"
 fi
 
 make undeploy
@@ -37,10 +47,8 @@ export VERSION="$(awk '/const OperatorVersion/ { gsub(/"/, ""); print $NF; }' co
   kubectl get pods --namespace=containerdiagoperator-system && \
   sleep 20 && \
   kubectl get pods --namespace=containerdiagoperator-system && \
-  printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' "$(printf '[{"kind": "Pod", "name": "%s", "namespace": "%s"}]' "${TARGETCONTAINER}" "${TARGETNAMESPACE}")" "${STEPS}" | kubectl create -f - && \
+  printf '{"apiVersion": "diagnostic.ibm.com/v1", "kind": "ContainerDiagnostic", "metadata": {"name": "%s", "namespace": "%s"}, "spec": {"command": "%s", "arguments": %s, "targetLabelSelectors": %s, "targetObjects": %s, "steps": %s}}' diag1 containerdiagoperator-system script '[]' "${TARGETLABELSELECTORS}" "${TARGETOBJECTS}" "${STEPS}" | kubectl create -f - && \
   sleep 60 && \
   kubectl describe ContainerDiagnostic diag1 --namespace=containerdiagoperator-system && \
-  #echo "" && \
-  #kubectl logs --container=manager --namespace=containerdiagoperator-system $(kubectl get pods --namespace=containerdiagoperator-system | awk '/containerdiagoperator/ {print $1;}') && \
   echo "" && \
   kubectl get ContainerDiagnostic diag1 --namespace=containerdiagoperator-system

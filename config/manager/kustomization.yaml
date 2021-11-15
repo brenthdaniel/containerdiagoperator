@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: docker.io/kgibm/containerdiagoperator
-  newTag: 0.234.20211115
+  newTag: 0.236.20211115
