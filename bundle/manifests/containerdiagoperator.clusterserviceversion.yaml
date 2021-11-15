@@ -6,7 +6,7 @@ metadata:
     capabilities: Basic Install
     operators.operatorframework.io/builder: operator-sdk-v1.13.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
-  name: containerdiagoperator.v0.231.20211108
+  name: containerdiagoperator.v0.236.20211115
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -124,7 +124,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: docker.io/kgibm/containerdiagoperator:0.231.20211108
+                image: quay.io/kgibm/containerdiagoperator:0.236.20211115
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -207,4 +207,4 @@ spec:
   provider:
     name: kevin.grigorenko@us.ibm.com
     url: https://github.com/kgibm/containerdiagoperator
-  version: 0.231.20211108
+  version: 0.236.20211115
